@@ -1,7 +1,7 @@
 # Ahana Consultation — Gemini Prompts (for the Make flow)
 
 Two prompts. Both return **JSON only** that Make merges into the one payload it injects
-into `ahana-consultation.html` (replace the `window.AHANA_DATA = null;` line, or pass
+into `index.html` (replace the `window.AHANA_DATA = null;` line, or pass
 `?d=<base64url(JSON)>`). You can run them as two Gemini calls and deep-merge the results,
 or paste both task blocks into a single call and ask for one combined object — see
 "Combined" at the bottom.

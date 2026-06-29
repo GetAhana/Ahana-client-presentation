@@ -4,7 +4,7 @@ Digital Success Consultation deck for Ahana reps — customer-facing slides plus
 
 ## Main file
 
-Open **`ahana-consultation.html`** in a browser, or host it on Cloudflare Pages / Workers / Netlify.
+Open **`index.html`** in a browser, or host it on Cloudflare Pages / Workers / Netlify (root URL works with no path).
 
 | URL param | Purpose |
 |-----------|---------|
@@ -20,4 +20,4 @@ Open **`ahana-consultation.html`** in a browser, or host it on Cloudflare Pages 
 
 ## Legacy
 
-Earlier split-file version (`legacy/`) — superseded by `ahana-consultation.html`.
+Earlier split-file version (`legacy/`) — superseded by `index.html`.

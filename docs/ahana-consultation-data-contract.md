@@ -1,6 +1,6 @@
 # Ahana Consultation — Data Contract (Supabase → Make → Gemini → deck)
 
-`ahana-consultation.html` is a **pure customer-facing presentation**. It collects nothing.
+`index.html` is a **pure customer-facing presentation**. It collects nothing.
 Make pulls the client record from Supabase, Gemini enriches it, and Make opens the deck
 with the data baked into the URL.
 
@@ -13,7 +13,7 @@ with the data baked into the URL.
    add **`?control`** to that URL to edit it in place, or press **E / Setup** during the deck.
 2. **URL** — append the JSON as a base64url param:
    ```
-   ahana-consultation.html?d=<base64url(JSON)>
+   index.html?d=<base64url(JSON)>
    ```
    `d` = the JSON below, UTF-8 → base64url (URL-safe: `+`→`-`, `/`→`_`, strip `=`).
    Quick flat params also work for testing: `?business=&owner=&trade=&city=&plan=enhanced&website=&rep=`
@@ -255,7 +255,7 @@ Do NOT invent proof screenshots, websiteUrl, or repName — Ahana supplies those
 3. **Gemini (HTTP module)** — send the prompt + record; parse the JSON reply.
 4. **Merge** — combine Supabase identity + proof images + website with Gemini enrichment.
 5. **Encode** — JSON → base64url (a small Function/Tools step).
-6. **Output** — `https://<host>/ahana-consultation.html?d=<encoded>`; email/Slack it to the rep, or store on the lead.
+6. **Output** — `https://<host>/index.html?d=<encoded>` (or `https://<host>/?d=<encoded>`); email/Slack it to the rep, or store on the lead.
 
 ## The REAL RESULTS slide
 
