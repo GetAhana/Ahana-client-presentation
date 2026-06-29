@@ -1,0 +1,476 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Digital Success Consultation — Ahana</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Playfair+Display:ital,wght@0,400;0,700;0,900;1,400&family=Lora:ital,wght@0,400;0,600;1,400&family=DM+Mono:wght@400;500&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="ahana-client-presentation.css">
+</head>
+<body>
+
+<div class="progress-bar" id="progressBar"></div>
+
+<div class="deck" id="deck" aria-live="polite"></div>
+
+<div class="deck-chrome" id="chrome">
+  <div class="chrome-left">
+    <button class="chrome-btn" id="btnPrev" type="button" aria-label="Previous slide">← Prev</button>
+    <span class="slide-counter" id="slideCounter">1 / 1</span>
+    <button class="chrome-btn" id="btnNext" type="button" aria-label="Next slide">Next →</button>
+  </div>
+  <div class="slide-dots" id="slideDots"></div>
+  <div class="chrome-right">
+    <button class="chrome-btn" id="btnRep" type="button" title="Edit discovery (R)">Discovery</button>
+    <button class="chrome-btn" id="btnFullscreen" type="button" title="Fullscreen (F)">Fullscreen</button>
+    <a class="chrome-btn" id="btnPrep" href="ahana-presentation-prep.html">Prep</a>
+    <button class="chrome-btn primary" id="btnReveal" type="button" title="Jump to website reveal handoff">→ Reveal</button>
+  </div>
+</div>
+
+<aside class="rep-panel" id="repPanel" aria-label="Discovery editor">
+  <h3>Discovery</h3>
+  <p>Fill these during the call if not done in prep. Slides update live.</p>
+  <form id="repForm">
+    <div class="rep-field"><label>Avg job value</label><input data-field="discovery.avgJobValue" placeholder="$2,500"></div>
+    <div class="rep-field"><label>Jobs per month</label><input data-field="discovery.jobsPerMonth" placeholder="12"></div>
+    <div class="rep-field"><label>Annual revenue</label><input data-field="discovery.annualRevenue" placeholder="$500,000"></div>
+    <div class="rep-field"><label>Growth goal</label><input data-field="discovery.growthGoal" placeholder="Fill more of the calendar"></div>
+    <div class="rep-field"><label>Service area</label><input data-field="discovery.serviceArea" placeholder="Chicago + suburbs"></div>
+    <div class="rep-field"><label>Crews / techs</label><input data-field="discovery.crewCount" placeholder="3 crews"></div>
+    <div class="rep-field"><label>Where jobs come from</label><input data-field="discovery.leadSources" placeholder="Referrals, Google"></div>
+    <div class="rep-field"><label>Competitors on Google</label><input data-field="discovery.competitors" placeholder="ABC Plumbing, XYZ HVAC"></div>
+    <div class="rep-field"><label>Biggest challenge</label><textarea data-field="discovery.biggestChallenge" placeholder="Not enough inbound calls"></textarea></div>
+    <div class="rep-field"><label>Recommended plan</label>
+      <select data-field="enrichment.recommendedPlan">
+        <option value="starter">Starter — $249/mo</option>
+        <option value="enhanced">Enhanced — $549/mo</option>
+        <option value="premium">Premium — $1,499/mo</option>
+      </select>
+    </div>
+    <div class="rep-actions">
+      <button class="chrome-btn primary" type="button" id="btnApplyDiscovery">Apply to slides</button>
+      <button class="chrome-btn" type="button" id="btnCopyLink">Copy presentation link</button>
+    </div>
+  </form>
+</aside>
+
+<script src="ahana-presentation.js"></script>
+<script>
+(function () {
+  'use strict';
+
+  var AP = window.AhanaPresentation;
+  var state = { data: AP.emptyData(), current: 0, slides: [], chromeVisible: true };
+
+  function esc(s) {
+    if (!s) return '';
+    var d = document.createElement('div');
+    d.textContent = s;
+    return d.innerHTML;
+  }
+
+  function val(v, fallback) {
+    return v ? esc(String(v)) : (fallback || '<span class="pcard-value empty">—</span>');
+  }
+
+  function buildSlides(data) {
+    var name = AP.displayName(data);
+    var biz = AP.businessLabel(data);
+    var tradeCity = AP.tradeCity(data);
+    var plan = AP.recommendedPlan(data);
+    var skipDisc = AP.discoveryComplete(data);
+    var slides = [];
+
+    slides.push({
+      id: 'cover',
+      theme: 'dark',
+      cover: true,
+      html:
+        '<div class="cover-orb"></div>' +
+        '<img src="ahana-logo.svg" alt="Ahana" class="cover-logo" />' +
+        '<h1 class="cover-headline">' + esc(biz) + '</h1>' +
+        '<p class="cover-sub">Your Digital Success Consultation — ' + esc(tradeCity) + '</p>' +
+        '<p class="cover-meta">Prepared for ' + esc(name) + (data.meta.repName ? ' · ' + esc(data.meta.repName) : '') + '</p>'
+    });
+
+    slides.push({
+      id: 'frame',
+      theme: 'light',
+      html:
+        '<div class="slide-eyebrow">Today\'s session</div>' +
+        '<h2 class="slide-title">Here\'s how this works, ' + esc(name) + '</h2>' +
+        '<p class="slide-lead">Two reasons we\'re here — understand your business, and see if we can actually help you get found online.</p>' +
+        '<div class="flow-list">' +
+        '<div class="flow-item"><div class="flow-num">1</div><div class="flow-content"><div class="flow-title">Understand your business</div><div class="flow-desc">A few quick questions so everything we show you is tailored to how you actually operate.</div></div></div>' +
+        '<div class="flow-item"><div class="flow-num">2</div><div class="flow-content"><div class="flow-title">Audit your online presence</div><div class="flow-desc">What customers see when they search for ' + esc(data.client.trade || 'your service') + ' in ' + esc(data.client.city || 'your area') + '.</div></div></div>' +
+        '<div class="flow-item"><div class="flow-num">3</div><div class="flow-content"><div class="flow-title">Walk through the strategy</div><div class="flow-desc">Why SEO — not just a website — is what drives jobs, and what ongoing management looks like.</div></div></div>' +
+        '<div class="flow-item"><div class="flow-num">4</div><div class="flow-content"><div class="flow-title">Your recommendation + next steps</div><div class="flow-desc">A clear plan sized to your business — then we\'ll show you something we built for you.</div></div></div>' +
+        '</div>' +
+        '<div class="callout callout-ember"><strong>Either way, you win.</strong> By the end, you\'ll have a clear roadmap you can use yourself over the next few months — or we handle it all for you. No pressure, no obligation.</div>'
+    });
+
+    if (!skipDisc) {
+      slides.push({
+        id: 'discovery',
+        theme: 'light',
+        html:
+          '<div class="slide-eyebrow">Discovery</div>' +
+          '<h2 class="slide-title">Tell me about your business</h2>' +
+          '<p class="slide-lead">So I can tailor everything to how you actually operate — not a generic pitch.</p>' +
+          '<div class="card-grid">' +
+          card('Annual revenue', data.discovery.annualRevenue, 'Rough yearly revenue') +
+          card('Growth goal', data.discovery.growthGoal, 'Hold steady or grow?') +
+          card('Service area', data.discovery.serviceArea || data.client.city, 'Cities you serve') +
+          card('Team size', data.discovery.crewCount, 'Crews or techs') +
+          card('Lead sources', data.discovery.leadSources, 'Where jobs come from') +
+          card('Competition', data.discovery.competitors, 'Who shows up on Google') +
+          card('Avg job value', data.discovery.avgJobValue, 'Typical ticket size') +
+          card('Jobs / month', data.discovery.jobsPerMonth, 'Current volume') +
+          '</div>' +
+          (data.discovery.biggestChallenge
+            ? '<div class="callout callout-blue"><strong>Biggest challenge:</strong> ' + esc(data.discovery.biggestChallenge) + '</div>'
+            : '<div class="callout callout-blue">Rep: capture answers live — press <strong>D</strong> to open the discovery panel.</div>')
+      });
+    } else {
+      slides.push({
+        id: 'discovery-recap',
+        theme: 'light',
+        html:
+          '<div class="slide-eyebrow">Your business</div>' +
+          '<h2 class="slide-title">What we know so far</h2>' +
+          '<p class="slide-lead">Based on what you\'ve shared — here\'s the picture we\'re working with.</p>' +
+          '<div class="card-grid">' +
+          card('Business', biz) +
+          card('Market', tradeCity) +
+          card('Avg job', data.discovery.avgJobValue) +
+          card('Volume', data.discovery.jobsPerMonth ? data.discovery.jobsPerMonth + ' jobs/mo' : '') +
+          card('Lead sources', data.discovery.leadSources) +
+          card('Growth goal', data.discovery.growthGoal) +
+          '</div>' +
+          (data.discovery.biggestChallenge
+            ? '<div class="callout callout-ember"><strong>Core challenge:</strong> ' + esc(data.discovery.biggestChallenge) + '</div>'
+            : '') +
+          (data.enrichment.personalizedPainPoint
+            ? '<div class="callout callout-blue">' + esc(data.enrichment.personalizedPainPoint) + '</div>'
+            : '')
+      });
+    }
+
+    slides.push({
+      id: 'google',
+      theme: 'dark',
+      html:
+        '<div class="slide-eyebrow">Google analysis</div>' +
+        '<h2 class="slide-title">What customers see when they search</h2>' +
+        '<p class="slide-lead">Search: <em>"' + esc(AP.searchQuery(data)) + '"</em></p>' +
+        '<div class="slide-body"><p>' + esc(AP.googleSummary(data)) + '</p></div>' +
+        (data.enrichment.localSearchInsight
+          ? '<div class="callout callout-ember">' + esc(data.enrichment.localSearchInsight) + '</div>'
+          : '') +
+        '<div class="stat-row">' +
+        '<div class="stat-box"><div class="stat-num">97%</div><div class="stat-lbl">of consumers search online before calling a local service</div></div>' +
+        '<div class="stat-box"><div class="stat-num">88%</div><div class="stat-lbl">of local searches lead to a call or visit within 24 hours</div></div>' +
+        '<div class="stat-box"><div class="stat-num">Top 3</div><div class="stat-lbl">map + organic results capture the vast majority of clicks</div></div>' +
+        '</div>' +
+        '<div class="callout callout-ember" style="margin-top:12px">Rep: run a live Google search here — <strong>' + esc(AP.searchQuery(data)) + '</strong></div>'
+    });
+
+    slides.push({
+      id: 'seo-gap',
+      theme: 'light',
+      html:
+        '<div class="slide-eyebrow">The gap</div>' +
+        '<h2 class="slide-title">A website and getting <em>found</em> are two different things</h2>' +
+        '<p class="slide-lead">A site nobody finds is a brochure in a drawer. Jobs come from showing up when people search.</p>' +
+        '<div class="two-col">' +
+        '<div class="compare-bad"><div class="compare-head">Having a website</div><p>Looks professional. Sits online. But if Google doesn\'t rank it for the searches that matter in ' + esc(data.client.city || 'your city') + ', customers never see it.</p></div>' +
+        '<div class="compare-good"><div class="compare-head">Website + SEO management</div><p>Built to rank. Updated every month. Shows up when someone searches for ' + esc(data.client.trade || 'your service') + ' — and turns searches into calls.</p></div>' +
+        '</div>' +
+        '<div class="callout callout-green" style="margin-top:18px"><strong>The Yellow Pages analogy:</strong> Google is today\'s phone book — and the businesses at the top get the calls. SEO is how you get listed there. Unlike ads, those leads don\'t cost you per click once you\'re ranked.</div>'
+    });
+
+    slides.push({
+      id: 'custom-build',
+      theme: 'light',
+      html:
+        '<div class="slide-eyebrow">How we build</div>' +
+        '<h2 class="slide-title">Custom-coded for trades — not a generic template</h2>' +
+        '<p class="slide-lead">We don\'t use Wix or Squarespace. Every site is built from real code, structured the way Google wants it.</p>' +
+        '<div class="flow-list">' +
+        flow('Fast & lean', 'No builder bloat — pages load quickly, which Google rewards.') +
+        flow('Trade-specific', 'Built for home service businesses only — your services, your city, your customers.') +
+        flow('SEO architecture', 'Headings, schema, and page structure designed to rank from day one.') +
+        flow('Fully managed', 'After setup, you never touch the technical side. We run it monthly.') +
+        '</div>'
+    });
+
+    slides.push({
+      id: 'monthly-engine',
+      theme: 'dark',
+      html:
+        '<div class="slide-eyebrow">The engine</div>' +
+        '<h2 class="slide-title">What runs every month behind the scenes</h2>' +
+        '<p class="slide-lead">This is the work that actually gets you found — most owners never want to touch it, and shouldn\'t have to.</p>' +
+        '<div class="card-grid">' +
+        pcard('Keywords & headings', 'Ongoing optimization for the searches that drive jobs in ' + esc(data.client.city || 'your market')) +
+        pcard('Content & blogs', 'Fresh SEO content every month — signals to Google that you\'re active and relevant') +
+        pcard('Technical SEO', 'Schema markup, indexing, page speed, on-page structure') +
+        pcard('Domain & hosting', 'Managed end-to-end — no dashboards you have to learn') +
+        pcard('Ranking reports', 'See exactly where you stand on your target keywords each month') +
+        pcard('Google Business Profile', 'Map pack visibility — reviews, hours, service area, consistency with your site') +
+        '</div>'
+    });
+
+    slides.push({
+      id: 'gbp',
+      theme: 'light',
+      html:
+        '<div class="slide-eyebrow">Local visibility</div>' +
+        '<h2 class="slide-title">Google Business Profile + website = one system</h2>' +
+        '<p class="slide-lead">The map listing with your reviews and hours is one of the biggest factors in the local "map pack" at the top of Google.</p>' +
+        '<div class="slide-body"><p>We manage your Google Business Profile alongside your website — fully optimized, consistent, and working together so you show up in <strong>map results and regular search results</strong>.</p><p>Most competitors treat these as separate problems. We architect them as one connected system from day one.</p></div>'
+    });
+
+    slides.push({
+      id: 'proof',
+      theme: 'dark',
+      html:
+        '<div class="slide-eyebrow">Real results</div>' +
+        '<h2 class="slide-title">What SEO leads look like when it\'s working</h2>' +
+        '<p class="slide-lead">No ads. No cold calling. People search, find the site, and reach out.</p>' +
+        '<div class="callout callout-ember">' +
+        (data.assets.leadProofNote
+          ? esc(data.assets.leadProofNote)
+          : 'Rep: pull up your SEO lead screenshots here. One real lead is often worth more than a full year of service.') +
+        '</div>' +
+        '<div class="slide-body" style="margin-top:16px"><p>This is what compounding looks like — around the 3-to-6 month mark, most owners start seeing a steady flow of inbound inquiries.</p></div>'
+    });
+
+    slides.push({
+      id: 'analogy',
+      theme: 'light',
+      html:
+        '<div class="slide-eyebrow">Simple frame</div>' +
+        '<h2 class="slide-title">Think of it like social media</h2>' +
+        '<p class="slide-lead">A website with no SEO is an account you never post to.</p>' +
+        '<div class="slide-body"><p>It just sits there. Nobody sees it. The posting, the activity, the consistency — <strong>that\'s what brings people in.</strong> That\'s exactly the work we do every single month on your behalf.</p></div>' +
+        '<div class="callout callout-green">You keep doing what you\'re good at. We make sure customers can find you when they need you.</div>'
+    });
+
+    slides.push({
+      id: 'trust',
+      theme: 'light',
+      html:
+        '<div class="slide-eyebrow">Why Ahana</div>' +
+        '<h2 class="slide-title">Built for businesses like yours</h2>' +
+        '<div class="card-grid">' +
+        pcard('No upfront build fee', AP.formatMoney(plan.buildValue) + ' website value — you see it before you invest a dollar') +
+        pcard('Trades specialists', 'Home services only — we know the searches and the customers') +
+        pcard('Month to month', 'No long contracts — we earn your business every month') +
+        pcard('You own it', 'After 12 months the site is yours outright — a real business asset') +
+        pcard('Website + SEO together', 'One managed ecosystem — not a site dump and a separate SEO bill') +
+        pcard('Fully managed', 'Optional client dashboard — but nothing technical you ever have to do') +
+        '</div>'
+    });
+
+    slides.push({
+      id: 'recommendation',
+      theme: 'dark',
+      html:
+        '<div class="slide-eyebrow">Your plan</div>' +
+        '<h2 class="slide-title">Our recommendation: ' + esc(plan.name) + '</h2>' +
+        '<p class="slide-lead">' + esc(AP.planRationale(data)) + '</p>' +
+        '<div class="roi-block">' +
+        '<div class="roi-math">' + esc(AP.roiCopy(data)) + '</div>' +
+        '<div class="roi-detail">Monthly investment: <strong>' + AP.formatMoney(plan.price) + '/mo</strong> · Website build included (' + AP.formatMoney(plan.buildValue) + ' value) · Month to month</div>' +
+        '</div>'
+    });
+
+    slides.push({
+      id: 'plans',
+      theme: 'light',
+      html:
+        '<div class="slide-eyebrow">Plans</div>' +
+        '<h2 class="slide-title">Three sizes — one recommendation for you</h2>' +
+        '<p class="slide-lead">We\'re recommending <strong>' + esc(plan.name) + '</strong> based on your business. Here\'s how the tiers compare.</p>' +
+        planGrid(data)
+    });
+
+    slides.push({
+      id: 'bridge',
+      theme: 'dark',
+      bridge: true,
+      html:
+        '<div class="slide-eyebrow">Next</div>' +
+        '<h2 class="slide-title">Now let me show you something</h2>' +
+        '<p class="slide-lead" style="max-width:640px;margin:0 auto">We\'ve been talking about strategy, SEO, and how customers find you online. Let me actually <em>show</em> you what it all lives on.</p>' +
+        '<div class="bridge-arrow">↓</div>' +
+        '<p class="slide-body" style="text-align:center;max-width:560px;margin:0 auto">Here\'s the website we built for <strong>' + esc(biz) + '</strong>. Take your time — scroll through, this is yours.</p>' +
+        (data.assets.sitePreviewUrl
+          ? '<p class="cover-meta" style="margin-top:24px"><a href="' + esc(data.assets.sitePreviewUrl) + '" target="_blank" rel="noopener" style="color:#FF7A5C">' + esc(data.assets.sitePreviewUrl) + '</a></p>'
+          : '<p class="cover-meta" style="margin-top:24px">Rep: open site preview in another tab — then share screen</p>')
+    });
+
+    return slides;
+  }
+
+  function card(label, value, placeholder) {
+    return (
+      '<div class="pcard"><div class="pcard-label">' + esc(label) + '</div><div class="pcard-value">' +
+      (value ? esc(String(value)) : '<span class="empty">' + esc(placeholder || '—') + '</span>') +
+      '</div></div>'
+    );
+  }
+
+  function pcard(title, body) {
+    return '<div class="pcard"><div class="pcard-label">' + esc(title) + '</div><div class="pcard-value" style="font-size:15px;font-family:var(--body);font-weight:400">' + esc(body) + '</div></div>';
+  }
+
+  function flow(title, body) {
+    return '<div class="flow-item"><div class="flow-num">·</div><div class="flow-content"><div class="flow-title">' + esc(title) + '</div><div class="flow-desc">' + esc(body) + '</div></div></div>';
+  }
+
+  function planGrid(data) {
+    var rec = AP.recommendedPlan(data).id;
+    var html = '<div class="plan-grid">';
+    ['starter', 'enhanced', 'premium'].forEach(function (id) {
+      var p = AP.PLANS[id];
+      html +=
+        '<div class="plan-card' + (id === rec ? ' recommended' : '') + '">' +
+        (id === rec ? '<div class="plan-badge">Recommended for you</div>' : '') +
+        '<div class="plan-tier">' + esc(p.name) + '</div>' +
+        '<div class="plan-price">' + AP.formatMoney(p.price) + '<span>/mo</span></div>' +
+        '<div class="plan-build">Free website — ' + AP.formatMoney(p.buildValue) + ' build value</div>' +
+        '<ul class="plan-features">' +
+        p.features.map(function (f) { return '<li>' + esc(f) + '</li>'; }).join('') +
+        '</ul></div>';
+    });
+    return html + '</div>';
+  }
+
+  function render() {
+    state.slides = buildSlides(state.data);
+    var deck = document.getElementById('deck');
+    deck.innerHTML = state.slides
+      .map(function (slide, i) {
+        var cls = 'slide ' + slide.theme + (slide.cover ? ' cover-slide' : '') + (slide.bridge ? ' bridge-slide' : '');
+        if (i === state.current) cls += ' active';
+        return '<section class="' + cls + '" data-index="' + i + '" data-id="' + slide.id + '"><div class="slide-inner">' + slide.html + '</div></section>';
+      })
+      .join('');
+    updateChrome();
+  }
+
+  function goTo(index) {
+    if (index < 0 || index >= state.slides.length) return;
+    state.current = index;
+    document.querySelectorAll('.slide').forEach(function (el, i) {
+      el.classList.toggle('active', i === index);
+    });
+    updateChrome();
+  }
+
+  function updateChrome() {
+    var total = state.slides.length;
+    var cur = state.current + 1;
+    document.getElementById('slideCounter').textContent = cur + ' / ' + total;
+    document.getElementById('progressBar').style.width = (cur / total * 100) + '%';
+
+    var dots = document.getElementById('slideDots');
+    dots.innerHTML = state.slides
+      .map(function (s, i) {
+        return '<button type="button" class="slide-dot' + (i === state.current ? ' active' : '') + '" data-index="' + i + '" aria-label="Slide ' + (i + 1) + ': ' + s.id + '"></button>';
+      })
+      .join('');
+    dots.querySelectorAll('.slide-dot').forEach(function (dot) {
+      dot.addEventListener('click', function () {
+        goTo(parseInt(dot.getAttribute('data-index'), 10));
+      });
+    });
+  }
+
+  function next() { goTo(state.current + 1); }
+  function prev() { goTo(state.current - 1); }
+
+  function jumpToReveal() {
+    var idx = state.slides.findIndex(function (s) { return s.id === 'bridge'; });
+    if (idx >= 0) goTo(idx);
+  }
+
+  function toggleRepPanel() {
+    document.getElementById('repPanel').classList.toggle('open');
+  }
+
+  function applyDiscovery() {
+    var form = document.getElementById('repForm');
+    state.data = AP.mergeDeep(state.data, AP.formToData(form));
+    state.data.discovery.complete = true;
+    AP.saveLocal(AP.STORAGE_KEY, state.data);
+    var wasOnDiscovery = state.slides[state.current] && state.slides[state.current].id === 'discovery';
+    render();
+    if (wasOnDiscovery) {
+      var recap = state.slides.findIndex(function (s) { return s.id === 'discovery-recap'; });
+      goTo(recap >= 0 ? recap : state.current);
+    }
+  }
+
+  function copyLink() {
+    applyDiscovery();
+    var url = AP.toShareUrl(state.data);
+    navigator.clipboard.writeText(url).then(function () {
+      alert('Presentation link copied — send to Make or open before the call.');
+    }).catch(function () {
+      prompt('Copy this link:', url);
+    });
+  }
+
+  function loadData() {
+    var fromUrl = AP.parseParams();
+    var fromLocal = AP.loadLocal(AP.STORAGE_KEY);
+    state.data = AP.mergeDeep(AP.emptyData(), fromLocal || {});
+    state.data = AP.mergeDeep(state.data, fromUrl);
+    if (fromUrl.meta && fromUrl.meta.leadId) state.data = AP.mergeDeep(state.data, fromUrl);
+
+    AP.populateForm(document.getElementById('repForm'), state.data);
+    document.title = AP.businessLabel(state.data) + ' — Digital Success Consultation';
+  }
+
+  document.getElementById('btnPrev').addEventListener('click', prev);
+  document.getElementById('btnNext').addEventListener('click', next);
+  document.getElementById('btnRep').addEventListener('click', toggleRepPanel);
+  document.getElementById('btnReveal').addEventListener('click', jumpToReveal);
+  document.getElementById('btnApplyDiscovery').addEventListener('click', applyDiscovery);
+  document.getElementById('btnCopyLink').addEventListener('click', copyLink);
+
+  document.getElementById('btnFullscreen').addEventListener('click', function () {
+    if (!document.fullscreenElement) document.documentElement.requestFullscreen();
+    else document.exitFullscreen();
+  });
+
+  document.addEventListener('keydown', function (e) {
+    if (e.target.matches('input, textarea, select')) return;
+    if (e.key === 'ArrowRight' || e.key === ' ') { e.preventDefault(); next(); }
+    if (e.key === 'ArrowLeft') { e.preventDefault(); prev(); }
+    if (e.key === 'd' || e.key === 'D') toggleRepPanel();
+    if (e.key === 'f' || e.key === 'F') document.getElementById('btnFullscreen').click();
+    if (e.key === 'h' || e.key === 'H') document.getElementById('chrome').classList.toggle('hidden');
+    if (e.key === 'r' || e.key === 'R') jumpToReveal();
+  });
+
+  var chromeTimer;
+  document.addEventListener('mousemove', function () {
+    document.getElementById('chrome').classList.remove('hidden');
+    clearTimeout(chromeTimer);
+    chromeTimer = setTimeout(function () {
+      if (document.fullscreenElement) document.getElementById('chrome').classList.add('hidden');
+    }, 3500);
+  });
+
+  loadData();
+  render();
+})();
+</script>
+</body>
+</html>

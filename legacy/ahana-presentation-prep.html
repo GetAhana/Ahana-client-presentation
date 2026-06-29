@@ -1,0 +1,198 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Presentation Prep — Ahana</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Playfair+Display:ital,wght@0,400;0,700;0,900&family=Lora:ital,wght@0,400;0,600;1,400&family=DM+Mono:wght@400;500&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="ahana-client-presentation.css">
+</head>
+<body>
+
+<div class="prep-layout">
+  <aside class="prep-sidebar">
+    <img src="ahana-logo.svg" alt="Ahana" class="logo-img">
+    <div class="logo-sub">Presentation Prep</div>
+    <p style="font-size:13px;color:rgba(255,255,255,.4);line-height:1.65;margin-bottom:20px">Fill discovery before the call — or let Make + Gemini enrich from intake. Generates a personalized deck link for screen share.</p>
+    <nav style="display:flex;flex-direction:column;gap:6px">
+      <a href="#client" style="color:rgba(255,255,255,.5);font-size:13px;text-decoration:none;padding:6px 0">Client info</a>
+      <a href="#discovery" style="color:rgba(255,255,255,.5);font-size:13px;text-decoration:none;padding:6px 0">Discovery</a>
+      <a href="#enrichment" style="color:rgba(255,255,255,.5);font-size:13px;text-decoration:none;padding:6px 0">Gemini enrichment</a>
+      <a href="#assets" style="color:rgba(255,255,255,.5);font-size:13px;text-decoration:none;padding:6px 0">Assets</a>
+      <a href="ahana-client-presentation.html" style="color:#FF7A5C;font-size:13px;text-decoration:none;padding:6px 0;margin-top:12px">→ Open blank deck</a>
+      <a href="ahana-sales-script.html" style="color:rgba(255,255,255,.35);font-size:12px;text-decoration:none;padding:6px 0">Sales script</a>
+    </nav>
+  </aside>
+
+  <main class="prep-main">
+    <div style="margin-bottom:28px;padding-bottom:22px;border-bottom:1px solid var(--border)">
+      <div style="font-family:var(--mono);font-size:10px;letter-spacing:.2em;text-transform:uppercase;color:var(--ember);margin-bottom:12px">Before the appointment</div>
+      <h1 style="font-family:var(--serif);font-size:clamp(28px,3vw,36px);font-weight:900;color:var(--ink);margin-bottom:8px">Build the client presentation</h1>
+      <p style="font-size:17px;font-style:italic;color:var(--ink-3);max-width:640px;line-height:1.75">Complete discovery in advance when possible. The deck runs through framing, Google analysis, SEO value, and plan recommendation — then hands off to the website reveal.</p>
+    </div>
+
+    <div class="make-hint">
+      <strong>Make + Gemini integration:</strong> Have your scenario output a JSON payload and append it as
+      <code>?d=&lt;base64url-encoded JSON&gt;</code> to
+      <code>ahana-client-presentation.html</code>.
+      Or map flat params: <code>?business=...&amp;city=...&amp;trade=...&amp;owner=...&amp;plan=enhanced&amp;preview=https://...</code>.
+      Paste enriched JSON below to preview, or use <strong>Import JSON</strong> from a webhook response.
+    </div>
+
+    <form id="prepForm">
+      <section class="prep-section" id="client">
+        <h2>Client information</h2>
+        <p class="sec-desc">From CRM, intake form, or cold-call notes.</p>
+        <div class="prep-grid">
+          <div class="rep-field"><label>Business name</label><input data-field="client.businessName" placeholder="Summit Plumbing LLC"></div>
+          <div class="rep-field"><label>Owner first name</label><input data-field="client.ownerFirstName" placeholder="Mike"></div>
+          <div class="rep-field"><label>Trade / industry</label><input data-field="client.trade" placeholder="Plumber"></div>
+          <div class="rep-field"><label>City</label><input data-field="client.city" placeholder="Phoenix"></div>
+          <div class="rep-field"><label>State</label><input data-field="client.state" placeholder="AZ"></div>
+          <div class="rep-field"><label>Rep name</label><input data-field="meta.repName" placeholder="Your name"></div>
+          <div class="rep-field"><label>CRM lead ID</label><input data-field="meta.leadId" placeholder="optional"></div>
+        </div>
+      </section>
+
+      <section class="prep-section" id="discovery">
+        <h2>Discovery questions</h2>
+        <p class="sec-desc">Call 2 discovery from the sales script. If filled here, the deck skips the live discovery slide and shows a recap instead.</p>
+        <div class="prep-grid">
+          <div class="rep-field"><label>Annual revenue</label><input data-field="discovery.annualRevenue" placeholder="$400,000"></div>
+          <div class="rep-field"><label>Growth goal</label><input data-field="discovery.growthGoal" placeholder="Fill the calendar"></div>
+          <div class="rep-field"><label>Service area</label><input data-field="discovery.serviceArea" placeholder="Phoenix + Mesa"></div>
+          <div class="rep-field"><label>Crews / techs</label><input data-field="discovery.crewCount" placeholder="2 crews"></div>
+          <div class="rep-field"><label>Lead sources today</label><input data-field="discovery.leadSources" placeholder="Referrals, yard signs"></div>
+          <div class="rep-field"><label>Competitors on Google</label><input data-field="discovery.competitors" placeholder="Who ranks above them"></div>
+          <div class="rep-field"><label>Average job value</label><input data-field="discovery.avgJobValue" placeholder="$850"></div>
+          <div class="rep-field"><label>Jobs per month</label><input data-field="discovery.jobsPerMonth" placeholder="20"></div>
+        </div>
+        <div class="rep-field" style="margin-top:14px"><label>Biggest challenge getting new customers</label><textarea data-field="discovery.biggestChallenge" placeholder="Not enough inbound — relying on referrals"></textarea></div>
+        <div class="rep-field" style="margin-top:10px">
+          <label style="display:flex;align-items:center;gap:8px;cursor:pointer;text-transform:none;letter-spacing:0;font-family:var(--body);font-size:14px;color:var(--ink-2)">
+            <input type="checkbox" data-field="options.skipDiscovery" id="skipDiscovery"> Discovery already complete — skip live discovery slide
+          </label>
+        </div>
+      </section>
+
+      <section class="prep-section" id="enrichment">
+        <h2>Gemini enrichment fields</h2>
+        <p class="sec-desc">Optional — ideal for Make to personalize after intake. Leave blank for sensible defaults from discovery + client info.</p>
+        <div class="prep-grid">
+          <div class="rep-field"><label>Google search query</label><input data-field="enrichment.searchQuery" placeholder="emergency plumber Phoenix"></div>
+          <div class="rep-field"><label>Recommended plan</label>
+            <select data-field="enrichment.recommendedPlan">
+              <option value="starter">Starter — $249/mo</option>
+              <option value="enhanced" selected>Enhanced — $549/mo</option>
+              <option value="premium">Premium — $1,499/mo</option>
+            </select>
+          </div>
+          <div class="rep-field"><label>Extra jobs / month (ROI)</label><input data-field="enrichment.monthlyExtraJobs" value="1" placeholder="1"></div>
+        </div>
+        <div class="rep-field" style="margin-top:14px"><label>Google analysis summary</label><textarea data-field="enrichment.googleAnalysisSummary" placeholder="Personalized paragraph about their ranking gap..."></textarea></div>
+        <div class="rep-field"><label>Local search insight</label><textarea data-field="enrichment.localSearchInsight" placeholder="Competitive metro note, map pack observation..."></textarea></div>
+        <div class="rep-field"><label>Personalized pain point</label><textarea data-field="enrichment.personalizedPainPoint" placeholder="Tie their challenge to invisible online presence..."></textarea></div>
+        <div class="rep-field"><label>Plan rationale</label><textarea data-field="enrichment.planRationale" placeholder="Why Enhanced fits their crews, services, and market..."></textarea></div>
+        <div class="rep-field"><label>ROI narrative</label><textarea data-field="enrichment.roiNarrative" placeholder="Custom ROI paragraph using their job value..."></textarea></div>
+      </section>
+
+      <section class="prep-section" id="assets">
+        <h2>Assets &amp; handoff</h2>
+        <p class="sec-desc">Site preview opens at the bridge slide — the handoff before website reveal on the call.</p>
+        <div class="prep-grid">
+          <div class="rep-field"><label>Site preview URL</label><input data-field="assets.sitePreviewUrl" placeholder="https://preview.netlify.app/..."></div>
+          <div class="rep-field"><label>Lead proof note</label><input data-field="assets.leadProofNote" placeholder="Rep reminder for proof slide"></div>
+        </div>
+      </section>
+
+      <section class="prep-section">
+        <h2>Import / export JSON</h2>
+        <p class="sec-desc">Paste Make webhook output or export for your automation scenario.</p>
+        <textarea id="jsonArea" style="width:100%;min-height:140px;font-family:var(--mono);font-size:11px;padding:12px;border:1px solid var(--border-s);border-radius:var(--r);background:var(--cream-2)" placeholder='{"client":{"businessName":"..."},"discovery":{...},"enrichment":{...}}'></textarea>
+        <div style="display:flex;gap:10px;margin-top:12px;flex-wrap:wrap">
+          <button type="button" class="btn" id="btnImportJson">Import JSON</button>
+          <button type="button" class="btn" id="btnExportJson">Export JSON</button>
+        </div>
+      </section>
+    </form>
+
+    <div class="prep-actions-bar">
+      <button type="button" class="btn btn-primary" id="btnOpenDeck">Open presentation</button>
+      <button type="button" class="btn btn-dark" id="btnCopyLink">Copy shareable link</button>
+      <button type="button" class="btn" id="btnSaveDraft">Save draft</button>
+      <span class="link-output" id="linkOutput">Link will appear here after you generate</span>
+    </div>
+  </main>
+</div>
+
+<script src="ahana-presentation.js"></script>
+<script>
+(function () {
+  'use strict';
+  var AP = window.AhanaPresentation;
+  var form = document.getElementById('prepForm');
+
+  function getData() {
+    var data = AP.formToData(form);
+    if (document.getElementById('skipDiscovery').checked) {
+      data.options.skipDiscovery = true;
+      data.discovery.complete = true;
+    }
+    data.meta.generatedAt = new Date().toISOString();
+    data.meta.source = 'prep';
+    return data;
+  }
+
+  function loadDraft() {
+    var fromUrl = AP.parseParams();
+    var draft = AP.loadLocal(AP.STORAGE_KEY);
+    var data = AP.mergeDeep(AP.emptyData(), draft || {});
+    data = AP.mergeDeep(data, fromUrl);
+    AP.populateForm(form, data);
+    if (data.options.skipDiscovery) document.getElementById('skipDiscovery').checked = true;
+  }
+
+  document.getElementById('btnOpenDeck').addEventListener('click', function () {
+    var data = getData();
+    AP.saveLocal(AP.STORAGE_KEY, data);
+    window.open(AP.toShareUrl(data), '_blank');
+  });
+
+  document.getElementById('btnCopyLink').addEventListener('click', function () {
+    var data = getData();
+    AP.saveLocal(AP.STORAGE_KEY, data);
+    var url = AP.toShareUrl(data);
+    document.getElementById('linkOutput').textContent = url;
+    navigator.clipboard.writeText(url).catch(function () {});
+  });
+
+  document.getElementById('btnSaveDraft').addEventListener('click', function () {
+    AP.saveLocal(AP.STORAGE_KEY, getData());
+    document.getElementById('linkOutput').textContent = 'Draft saved locally — open presentation anytime.';
+  });
+
+  document.getElementById('btnExportJson').addEventListener('click', function () {
+    document.getElementById('jsonArea').value = JSON.stringify(getData(), null, 2);
+  });
+
+  document.getElementById('btnImportJson').addEventListener('click', function () {
+    try {
+      var data = JSON.parse(document.getElementById('jsonArea').value);
+      AP.populateForm(form, AP.mergeDeep(AP.emptyData(), data));
+      if (data.options && data.options.skipDiscovery) document.getElementById('skipDiscovery').checked = true;
+      document.getElementById('linkOutput').textContent = 'JSON imported — review fields and open presentation.';
+    } catch (e) {
+      alert('Invalid JSON: ' + e.message);
+    }
+  });
+
+  form.addEventListener('change', function () {
+    AP.saveLocal(AP.STORAGE_KEY, getData());
+  });
+
+  loadDraft();
+})();
+</script>
+</body>
+</html>

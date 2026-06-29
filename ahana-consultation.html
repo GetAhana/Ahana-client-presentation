@@ -1,0 +1,1353 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Digital Success Consultation — Ahana</title>
+<meta name="robots" content="noindex,nofollow">
+<!--
+  AHANA — DIGITAL SUCCESS CONSULTATION (control surface + customer deck)
+  ---------------------------------------------------------------------
+  This ONE page does both jobs:
+    • CONTROL view (rep-facing) — pick a booked appointment from Supabase, it
+      auto-populates from the lead/appointment, every blank is shown as a
+      {{placeholder}} highlighted RED (hard data) or {{Gemini input}} (AI), the
+      plan is auto-recommended, then "Run presentation".
+    • PRESENT view (customer-facing) — the deck. Open directly with ?present.
+
+  Data sources, in priority order:
+    1) Supabase   — configure SUPABASE below; dropdown of appointments.
+    2) Inject     — Make replaces `window.AHANA_DATA = null` (re-implant).
+    3) URL        — ?d=<base64url(JSON)>  (or flat ?business=&city=… )
+  Docs: ahana-consultation-data-contract.md · -gemini-prompts.md · -plan-logic.md
+-->
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Playfair+Display:ital,wght@0,400;0,600;0,700;0,900;1,400;1,700&family=Lora:ital,wght@0,400;0,500;0,600;1,400&family=DM+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+:root{
+  --ink:#1A1A1B;--ink-2:#3A3A38;--ink-3:#6A6A68;--ink-4:#9A9A98;
+  --obsidian:#0F0F10;--obsidian-2:#16161A;
+  --ember:#FF5733;--ember-dark:#CC3D1A;--ember-soft:#FF7A5C;--ember-dim:rgba(255,87,51,.10);--ember-light:#FFF0EC;
+  --cream:#FAF8F4;--cream-2:#F2EFE8;--cream-3:#EBEBE6;--white:#FFFFFF;
+  --border:rgba(26,26,27,.08);--border-s:rgba(26,26,27,.14);--border-light:rgba(255,255,255,.08);
+  --green:#2A7A38;--green-l:#E8F5EA;--green-b:#B0D8B8;
+  --blue:#1B5FAE;--blue-l:#E8F0FB;--blue-b:#B8CAEF;
+  --red:#C0392B;--red-l:#FBEAEA;--red-b:#E8B0B0;
+  --amber:#B07A00;--amber-l:#FBF3DC;--amber-b:#E6CE84;
+  --r:10px;--rl:16px;--rxl:20px;
+  --serif:'Playfair Display',Georgia,serif;
+  --body:'Lora',Georgia,serif;
+  --mono:'DM Mono',ui-monospace,monospace;
+  --noise:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='200' height='200'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)' opacity='0.035'/%3E%3C/svg%3E");
+}
+html,body{height:100%}
+body{font-family:var(--body);background:var(--obsidian);color:var(--ink-2);-webkit-font-smoothing:antialiased;text-rendering:optimizeLegibility}
+body.presenting{overflow:hidden}
+[hidden]{display:none!important}
+em{font-style:italic}
+
+/* ============================ CONTROL VIEW ============================ */
+.control{min-height:100vh;background:var(--cream);padding:0 0 120px}
+.ctl-top{background:var(--obsidian);color:#fff;padding:22px 36px;position:relative;overflow:hidden}
+.ctl-top::before{content:'';position:absolute;inset:0;pointer-events:none;background-image:var(--noise)}
+.ctl-top>*{position:relative;z-index:1}
+.ctl-mark{font-family:var(--serif);font-size:23px;font-weight:700;letter-spacing:.04em}
+.ctl-mark .wm-g{color:rgba(255,255,255,.42)}.ctl-mark .wm-e{color:var(--ember)}
+.ctl-sub{font-family:var(--mono);font-size:10px;letter-spacing:.2em;text-transform:uppercase;color:rgba(255,255,255,.35);margin-top:6px}
+.ctl-wrap{max-width:1100px;margin:0 auto;padding:26px 36px 0}
+
+.sb-bar{background:var(--white);border:1px solid var(--border-s);border-radius:var(--rl);padding:18px 22px;margin-bottom:18px;display:flex;flex-wrap:wrap;gap:14px;align-items:center}
+.sb-bar .sb-status{font-family:var(--mono);font-size:11px;letter-spacing:.06em;display:flex;align-items:center;gap:8px;color:var(--ink-3)}
+.sb-bar .sb-status .dot{width:8px;height:8px;border-radius:50%;background:var(--ink-4)}
+.sb-bar.ok .sb-status .dot{background:#2FBF63}.sb-bar.off .sb-status .dot{background:var(--ink-4)}
+.sb-bar select{flex:1;min-width:240px;font-family:var(--body);font-size:14.5px;padding:11px 13px;border:1px solid var(--border-s);border-radius:var(--r);background:var(--cream);color:var(--ink)}
+.sb-hint{font-size:12px;color:var(--ink-4);width:100%;line-height:1.5}
+.sb-hint code{font-family:var(--mono);font-size:11px;background:var(--cream-2);padding:1px 5px;border-radius:4px}
+
+.summary-row{display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-bottom:18px}
+.scard{background:var(--white);border:1px solid var(--border-s);border-radius:var(--rl);padding:18px 22px}
+.scard .lbl{font-family:var(--mono);font-size:9.5px;letter-spacing:.14em;text-transform:uppercase;color:var(--ink-4);margin-bottom:10px}
+.completeness{display:flex;align-items:center;gap:14px}
+.comp-num{font-family:var(--serif);font-size:34px;font-weight:900;color:var(--ink);line-height:1}
+.comp-txt{font-size:13.5px;line-height:1.5}
+.comp-txt .miss{color:var(--red);font-weight:600}
+.comp-txt .ok{color:var(--green);font-weight:600}
+.plan-rec{display:flex;align-items:center;gap:14px;flex-wrap:wrap}
+.plan-pill{font-family:var(--serif);font-size:22px;font-weight:900;color:#fff;background:var(--ember);padding:6px 16px;border-radius:8px}
+.plan-why{font-size:13px;color:var(--ink-3);line-height:1.5;flex:1;min-width:160px}
+.plan-rec .src{font-family:var(--mono);font-size:10px;letter-spacing:.08em;text-transform:uppercase;color:var(--ink-4)}
+.mini-btn{font-family:var(--mono);font-size:10px;font-weight:500;letter-spacing:.08em;text-transform:uppercase;padding:7px 12px;border-radius:999px;border:1px solid var(--border-s);background:var(--white);color:var(--ink);cursor:pointer}
+.mini-btn:hover{background:var(--cream-2)}
+
+.ctl-sec{background:var(--white);border:1px solid var(--border-s);border-radius:var(--rl);padding:22px 26px;margin-bottom:16px}
+.ctl-sec h2{font-family:var(--serif);font-size:20px;font-weight:700;color:var(--ink);margin-bottom:3px}
+.ctl-sec .sdesc{font-size:12.5px;color:var(--ink-4);margin-bottom:18px}
+.ctl-grid{display:grid;grid-template-columns:1fr 1fr;gap:14px}
+.cf{display:flex;flex-direction:column}
+.cf.wide{grid-column:1/-1}
+.cf label{font-family:var(--mono);font-size:10px;font-weight:500;letter-spacing:.08em;text-transform:uppercase;color:var(--ink-4);margin-bottom:6px;display:flex;align-items:center;gap:7px}
+.cf label .tag{font-family:var(--mono);font-size:8.5px;letter-spacing:.05em;padding:2px 6px;border-radius:4px;text-transform:uppercase}
+.cf label .tag.req{background:var(--red-l);color:var(--red);border:1px solid var(--red-b)}
+.cf label .tag.gem{background:var(--amber-l);color:var(--amber);border:1px solid var(--amber-b)}
+.cf label .tag.num{background:var(--blue-l);color:var(--blue);border:1px solid var(--blue-b)}
+.cf input,.cf select,.cf textarea{width:100%;font-family:var(--body);font-size:14.5px;padding:10px 12px;border:1px solid var(--border-s);border-radius:var(--r);background:var(--cream);color:var(--ink);transition:.12s}
+.cf textarea{min-height:64px;resize:vertical;line-height:1.5;font-family:var(--body)}
+.cf input:focus,.cf select:focus,.cf textarea:focus{outline:none;border-color:var(--ember);background:#fff;box-shadow:0 0 0 3px var(--ember-dim)}
+.cf input::placeholder,.cf textarea::placeholder{color:var(--ink-4);font-style:italic}
+/* empty-state colouring */
+.cf.miss input,.cf.miss textarea,.cf.miss select{border-color:var(--red);background:var(--red-l)}
+.cf.miss input::placeholder,.cf.miss textarea::placeholder{color:var(--red);opacity:.85;font-family:var(--mono);font-size:12.5px;font-style:normal}
+.cf.gem input,.cf.gem textarea{border-color:var(--amber-b);background:var(--amber-l)}
+.cf.gem input::placeholder,.cf.gem textarea::placeholder{color:var(--amber);opacity:.9;font-family:var(--mono);font-size:12px;font-style:normal}
+.cf.num input{border-style:dashed}
+.cf.num input::placeholder{color:var(--blue);opacity:.75;font-family:var(--mono);font-size:12px;font-style:normal}
+
+.ctl-actions{position:fixed;bottom:0;left:0;right:0;background:rgba(250,248,244,.96);backdrop-filter:blur(10px);border-top:1px solid var(--border-s);padding:15px 36px;display:flex;gap:12px;flex-wrap:wrap;align-items:center;z-index:40}
+.ctl-actions .spacer{flex:1}
+.cbig{font-family:var(--mono);font-size:11px;font-weight:500;letter-spacing:.1em;text-transform:uppercase;padding:12px 22px;border-radius:999px;border:1px solid var(--border-s);background:var(--white);color:var(--ink);cursor:pointer;transition:.15s;text-decoration:none}
+.cbig:hover{background:var(--cream-2)}
+.cbig.primary{background:var(--ember);border-color:var(--ember);color:#fff}.cbig.primary:hover{background:var(--ember-dark)}
+.cbig.dark{background:var(--obsidian);border-color:var(--obsidian);color:#fff}
+.copied{font-family:var(--mono);font-size:11px;color:var(--ink-3)}
+
+/* ============================ DECK ============================ */
+.deck-wrap{position:fixed;inset:0;background:var(--obsidian);z-index:10}
+.progress{position:fixed;top:0;left:0;height:3px;background:var(--ember);z-index:60;transition:width .35s ease;box-shadow:0 0 12px rgba(255,87,51,.5)}
+.deck{position:absolute;inset:0;overflow:hidden}
+.slide{position:absolute;inset:0;display:none;flex-direction:column;justify-content:center;padding:54px 76px 96px;overflow-y:auto}
+.slide.active{display:flex;animation:slin .42s cubic-bezier(.2,.7,.2,1)}
+@keyframes slin{from{opacity:0;transform:translateY(14px)}to{opacity:1;transform:none}}
+.slide.dark{background:var(--obsidian);color:rgba(255,255,255,.82)}
+.slide.dark::before{content:'';position:absolute;inset:0;pointer-events:none;background-image:var(--noise)}
+.slide.light{background:var(--cream);color:var(--ink-2)}
+.slide.light::after{content:'';position:absolute;top:0;right:0;width:46%;height:100%;pointer-events:none;background:radial-gradient(ellipse at top right,rgba(255,87,51,.05),transparent 60%)}
+.inner{position:relative;z-index:1;width:100%;max-width:1060px;margin:0 auto}
+
+/* placeholder tokens in the deck */
+.tok{font-family:var(--mono);font-size:.82em;letter-spacing:.02em;padding:1px 7px;border-radius:5px;white-space:nowrap}
+.tok.td{background:rgba(192,57,43,.14);color:#FF6B5C;border:1px dashed rgba(255,107,92,.6)}
+.tok.tg{background:rgba(176,122,0,.16);color:#F2C14E;border:1px dashed rgba(242,193,78,.55)}
+.slide.light .tok.td{background:#FBEAEA;color:var(--red);border-color:var(--red-b)}
+.slide.light .tok.tg{background:var(--amber-l);color:var(--amber);border-color:var(--amber-b)}
+
+.s-eyebrow{font-family:var(--mono);font-size:10.5px;font-weight:500;letter-spacing:.22em;text-transform:uppercase;color:var(--ember);display:inline-flex;align-items:center;gap:12px;margin-bottom:18px}
+.s-eyebrow::after{content:'';height:1px;width:38px;background:currentColor;opacity:.4}
+.slide.dark .s-eyebrow{color:var(--ember-soft)}
+.s-title{font-family:var(--serif);font-size:clamp(30px,4.4vw,52px);font-weight:900;line-height:1.07;letter-spacing:-.012em;margin-bottom:16px}
+.slide.dark .s-title{color:#fff}.slide.light .s-title{color:var(--ink)}
+.s-title em{font-style:italic;color:var(--ember)}
+.s-lead{font-family:var(--body);font-size:clamp(17px,1.9vw,22px);font-style:italic;line-height:1.62;max-width:760px;margin-bottom:26px}
+.slide.dark .s-lead{color:rgba(255,255,255,.56)}.slide.light .s-lead{color:var(--ink-3)}
+.s-body{font-size:17px;line-height:1.78;max-width:820px}.s-body p{margin-bottom:13px}.s-body p:last-child{margin-bottom:0}
+.s-body strong{color:var(--ink);font-weight:600}.slide.dark .s-body strong{color:#fff}
+.s-caption{font-family:var(--mono);font-size:10.5px;letter-spacing:.04em;color:var(--ink-4);margin-top:14px}
+.slide.dark .s-caption{color:rgba(255,255,255,.32)}
+
+/* cover */
+.slide.cover{justify-content:center;align-items:center;text-align:center;padding:64px 48px}
+.cover-orb{position:absolute;width:920px;height:920px;border-radius:50%;top:50%;left:50%;transform:translate(-50%,-54%);pointer-events:none;background:radial-gradient(circle,rgba(255,87,51,.11),transparent 62%)}
+.cover-slash{position:absolute;top:50%;left:50%;width:140%;height:42px;transform:translate(-50%,-50%) rotate(-8deg);background:linear-gradient(90deg,transparent,rgba(255,87,51,.16),transparent);pointer-events:none}
+.cover .inner{max-width:880px}
+.cover-mark{font-family:var(--serif);font-size:21px;font-weight:700;letter-spacing:.05em;margin-bottom:46px}
+.cover-mark .wm-g{color:rgba(255,255,255,.42)}.cover-mark .wm-e{color:var(--ember)}
+.cover-kicker{font-family:var(--mono);font-size:11px;letter-spacing:.32em;text-transform:uppercase;color:var(--ember-soft);margin-bottom:20px}
+.cover h1{font-family:var(--serif);font-size:clamp(42px,6.4vw,80px);font-weight:900;color:#fff;line-height:1.02;letter-spacing:-.015em;margin-bottom:22px}
+.cover .sub{font-family:var(--body);font-size:clamp(17px,2.1vw,23px);font-style:italic;color:rgba(255,255,255,.5);line-height:1.55;max-width:560px;margin:0 auto}
+.cover .meta{margin-top:46px;font-family:var(--mono);font-size:11px;letter-spacing:.16em;text-transform:uppercase;color:rgba(255,255,255,.3);line-height:1.9}
+
+/* grids + cards */
+.cardgrid{display:grid;grid-template-columns:repeat(auto-fit,minmax(232px,1fr));gap:14px}
+.grid2x2{display:grid;grid-template-columns:1fr 1fr;gap:14px;max-width:760px}
+.gcard{background:var(--white);border:1px solid var(--border-s);border-radius:var(--rl);padding:20px 22px}
+.slide.dark .gcard{background:rgba(255,255,255,.04);border-color:var(--border-light)}
+.gcard .lbl{font-family:var(--mono);font-size:9px;font-weight:500;letter-spacing:.14em;text-transform:uppercase;color:var(--ink-4);margin-bottom:9px}
+.slide.dark .gcard .lbl{color:rgba(255,255,255,.38)}
+.gcard .val{font-family:var(--serif);font-size:21px;font-weight:700;color:var(--ink);line-height:1.3}
+.slide.dark .gcard .val{color:#fff}
+.gcard .val.sm{font-family:var(--body);font-size:14.5px;font-weight:400;color:var(--ink-2);line-height:1.6}
+.slide.dark .gcard .val.sm{color:rgba(255,255,255,.7)}
+
+/* stats */
+.statrow{display:grid;grid-template-columns:repeat(3,1fr);gap:14px;margin:22px 0}
+.stat{background:var(--white);border:1px solid var(--border-s);border-radius:var(--rl);padding:20px 18px;text-align:center}
+.slide.dark .stat{background:rgba(255,255,255,.04);border-color:var(--border-light)}
+.stat .n{font-family:var(--serif);font-size:clamp(34px,4vw,50px);font-weight:900;color:var(--ember);line-height:1}
+.stat .l{font-size:13px;color:var(--ink-3);margin-top:9px;line-height:1.5}
+.slide.dark .stat .l{color:rgba(255,255,255,.5)}
+
+/* flow */
+.flow{display:flex;flex-direction:column;gap:12px;margin-top:6px}
+.flowitem{display:flex;gap:16px;align-items:flex-start}
+.flownum{width:34px;height:34px;border-radius:50%;background:var(--ember-dim);border:1.5px solid rgba(255,87,51,.28);color:var(--ember);font-family:var(--serif);font-size:15px;font-weight:700;display:flex;align-items:center;justify-content:center;flex-shrink:0}
+.slide.dark .flownum{background:rgba(255,87,51,.13);border-color:rgba(255,87,51,.36);color:var(--ember-soft)}
+.flownum.g{background:rgba(42,122,56,.12);border-color:rgba(42,122,56,.3);color:var(--green)}
+.slide.dark .flownum.g{background:rgba(120,200,140,.14);border-color:rgba(120,200,140,.34);color:#7FD493}
+.flowbody{background:var(--white);border:1px solid var(--border-s);border-radius:var(--rl);padding:14px 20px;flex:1}
+.slide.dark .flowbody{background:rgba(255,255,255,.04);border-color:var(--border-light)}
+.flowbody b{font-family:var(--serif);font-size:17px;font-weight:700;color:var(--ink);display:block;margin-bottom:3px}
+.slide.dark .flowbody b{color:#fff}
+.flowbody span{font-size:14px;color:var(--ink-3);line-height:1.6}
+.slide.dark .flowbody span{color:rgba(255,255,255,.5)}
+.flowbody .ln{font-family:var(--body);font-size:15px;color:var(--ink-2);line-height:1.55}
+.slide.dark .flowbody .ln{color:rgba(255,255,255,.78)}
+
+/* callouts */
+.callout{border-radius:var(--r);padding:15px 19px;margin:18px 0;font-size:15px;line-height:1.66}
+.callout.ember{background:var(--ember-light);border:1px solid #FFB8A5;color:#7A2000}
+.callout.blue{background:var(--blue-l);border:1px solid var(--blue-b);color:#1B3D7A}
+.callout.green{background:var(--green-l);border:1px solid var(--green-b);color:#1A4D24}
+.slide.dark .callout.ember{background:rgba(255,87,51,.12);border-color:rgba(255,87,51,.32);color:#FFC8B9}
+.slide.dark .callout.green{background:rgba(42,122,56,.15);border-color:rgba(120,200,140,.3);color:#BFE6C7}
+
+/* two col */
+.twocol{display:grid;grid-template-columns:1fr 1fr;gap:18px;margin-top:8px}
+.cmp{border-radius:var(--rl);padding:20px 22px}
+.cmp.bad{background:#FBEAEA;border:1px solid var(--red-b);color:#7A1A0A}
+.cmp.good{background:var(--green-l);border:1px solid var(--green-b);color:#1A4D24}
+.cmp .h{font-family:var(--mono);font-size:10px;font-weight:500;letter-spacing:.13em;text-transform:uppercase;margin-bottom:11px}
+.cmp p{font-size:14.5px;line-height:1.66}.cmp p+p{margin-top:8px}
+
+/* SERP audit */
+.serp{background:var(--white);border-radius:var(--rl);padding:18px;max-width:760px;box-shadow:0 24px 60px rgba(0,0,0,.35)}
+.serp-bar{display:flex;align-items:center;gap:12px;background:var(--cream-2);border:1px solid var(--border-s);border-radius:999px;padding:11px 18px;margin-bottom:16px}
+.serp-bar .g{font-family:var(--serif);font-weight:700;font-size:17px}
+.serp-bar .g .b{color:#4285F4}.serp-bar .g .r{color:#EA4335}.serp-bar .g .y{color:#FBBC05}.serp-bar .g .g2{color:#34A853}
+.serp-bar .q{flex:1;font-family:var(--body);font-size:15px;color:var(--ink-2)}
+.serp-bar .mag{color:var(--ink-4);font-size:15px}
+.serp-tag{font-family:var(--mono);font-size:9px;letter-spacing:.12em;text-transform:uppercase;color:var(--ink-4);margin:0 2px 9px}
+.serp-row{display:flex;align-items:center;gap:14px;padding:13px 14px;border:1px solid var(--border);border-radius:var(--r);margin-bottom:8px;background:var(--white)}
+.serp-row .rank{width:24px;height:24px;border-radius:50%;background:var(--cream-2);color:var(--ink-3);font-family:var(--mono);font-size:11px;font-weight:500;display:flex;align-items:center;justify-content:center;flex-shrink:0}
+.serp-row .biz{flex:1;min-width:0}
+.serp-row .biz .nm{font-family:var(--body);font-weight:600;font-size:15px;color:var(--ink);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.serp-row .biz .rv{font-size:12px;color:var(--ink-4);margin-top:2px}
+.serp-row .biz .rv .star{color:#FBBC05}
+.serp-row .pin{font-family:var(--mono);font-size:9px;letter-spacing:.1em;text-transform:uppercase;color:var(--green);background:var(--green-l);border:1px solid var(--green-b);padding:3px 8px;border-radius:5px;flex-shrink:0}
+.serp-you{display:flex;align-items:center;gap:14px;padding:15px 16px;border:1.5px dashed var(--red-b);border-radius:var(--r);background:var(--red-l);margin-top:6px}
+.serp-you .rank{width:24px;height:24px;border-radius:50%;display:flex;align-items:center;justify-content:center;background:#fff;color:var(--red);border:1px solid var(--red-b);font-family:var(--mono);font-size:11px;flex-shrink:0}
+.serp-you .biz{flex:1}.serp-you .nm{font-family:var(--body);font-weight:700;font-size:15px;color:var(--red)}
+.serp-you .sub{font-size:12.5px;color:#9A3A2A;margin-top:2px}
+.serp-you .pin{font-family:var(--mono);font-size:9px;letter-spacing:.1em;text-transform:uppercase;color:#fff;background:var(--red);padding:4px 9px;border-radius:5px;flex-shrink:0}
+
+/* footprint score ring */
+.fp-grid{display:grid;grid-template-columns:300px 1fr;gap:30px;align-items:center;margin-top:8px}
+.fp-left{text-align:center}
+.fp-ring{position:relative;width:184px;height:184px;margin:0 auto}
+.fp-ring svg{width:184px;height:184px}
+.fp-ring-num{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;font-family:var(--serif);font-size:52px;font-weight:900;color:#fff}
+.fp-ring-l{font-family:var(--mono);font-size:10px;letter-spacing:.16em;text-transform:uppercase;color:rgba(255,255,255,.5);margin-top:12px}
+.fp-badge{margin-top:18px;background:rgba(255,87,51,.1);border:1px solid rgba(255,87,51,.3);border-radius:var(--r);padding:12px 16px;text-align:left}
+.fp-badge .k{font-family:var(--mono);font-size:9px;letter-spacing:.14em;text-transform:uppercase;color:var(--ember-soft);display:block;margin-bottom:4px}
+.fp-badge b{font-family:var(--serif);font-size:17px;color:#fff;font-weight:700;line-height:1.25;display:block}
+.fp-badge .sub{font-size:12.5px;color:rgba(255,255,255,.55);margin-top:4px;display:block}
+.fp-query{font-family:var(--mono);font-size:11px;color:rgba(255,255,255,.42);margin-top:12px}
+.fp-notes-h{font-family:var(--mono);font-size:9.5px;letter-spacing:.14em;text-transform:uppercase;color:rgba(255,255,255,.4);margin-bottom:12px}
+.fp-note{background:rgba(255,255,255,.04);border:1px solid var(--border-light);border-left:2px solid rgba(255,87,51,.4);border-radius:0 var(--r) var(--r) 0;padding:11px 15px;margin-bottom:9px;font-size:14px;line-height:1.55;color:rgba(255,255,255,.78)}
+.fp-note:last-child{margin-bottom:0}
+
+/* citations */
+.cit{margin-top:8px}
+.cit-col{border-radius:var(--rl);padding:18px 20px}
+.cit-col.good{background:var(--green-l);border:1px solid var(--green-b)}
+.cit-col.miss{background:var(--ember-light);border:1px solid #FFB8A5}
+.slide.dark .cit-col.good{background:rgba(42,122,56,.12);border-color:rgba(120,200,140,.3)}
+.slide.dark .cit-col.miss{background:rgba(255,87,51,.1);border-color:rgba(255,87,51,.3)}
+.cit-h{display:flex;align-items:center;justify-content:space-between;font-family:var(--mono);font-size:10px;font-weight:500;letter-spacing:.13em;text-transform:uppercase;margin-bottom:13px;padding-bottom:11px;border-bottom:1px solid rgba(0,0,0,.08)}
+.cit-col.good .cit-h{color:#1A4D24}.cit-col.miss .cit-h{color:#7A2000}
+.slide.dark .cit-col.good .cit-h{color:#BFE6C7}.slide.dark .cit-col.miss .cit-h{color:#FFC8B9}
+.cit-n{font-family:var(--serif);font-size:18px;font-weight:900;opacity:.7}
+.cit-li{display:flex;gap:11px;align-items:flex-start;font-size:14.5px;line-height:1.5;padding:7px 0;color:var(--ink-2)}
+.slide.dark .cit-li{color:rgba(255,255,255,.8)}
+.cit-ic{width:20px;height:20px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:11px;font-weight:700;flex-shrink:0;margin-top:1px}
+.cit-ic.ok{background:var(--green);color:#fff}.cit-ic.no{background:var(--ember);color:#fff}
+
+/* real cost hero */
+.cost-hero{background:var(--obsidian-2);border:1px solid var(--border-light);border-radius:var(--rxl);padding:34px;text-align:center;position:relative;overflow:hidden;margin-top:8px}
+.cost-hero::before{content:'';position:absolute;inset:0;pointer-events:none;background-image:var(--noise)}
+.cost-hero>*{position:relative;z-index:1}
+.cost-big{font-family:var(--serif);font-size:clamp(46px,7vw,84px);font-weight:900;color:var(--ember-soft);line-height:1}
+.cost-big-l{font-family:var(--mono);font-size:11px;letter-spacing:.18em;text-transform:uppercase;color:rgba(255,255,255,.5);margin-top:12px}
+.cost-sub{font-family:var(--body);font-style:italic;font-size:15.5px;color:#FFC8B9;max-width:660px;margin:20px auto 0;line-height:1.6}
+.cost-annual{font-family:var(--mono);font-size:11px;letter-spacing:.06em;color:rgba(255,255,255,.4);margin-top:16px}
+
+/* map pack */
+.mappack{display:grid;grid-template-columns:1.1fr 1fr;gap:18px;align-items:stretch;margin-top:8px}
+.map-vis{position:relative;background:linear-gradient(135deg,#E9EEE6,#DCE5DA);border:1px solid var(--border-s);border-radius:var(--rl);min-height:230px;overflow:hidden}
+.map-vis::before{content:'';position:absolute;inset:0;background-image:linear-gradient(rgba(255,255,255,.5) 1px,transparent 1px),linear-gradient(90deg,rgba(255,255,255,.5) 1px,transparent 1px);background-size:34px 34px}
+.map-pin{position:absolute;width:26px;height:26px;border-radius:50% 50% 50% 0;transform:rotate(-45deg);box-shadow:0 4px 10px rgba(0,0,0,.25)}
+.map-pin.you{background:var(--ember);width:34px;height:34px}
+.map-pin.you::after{content:'';position:absolute;width:12px;height:12px;background:#fff;border-radius:50%;top:7px;left:7px}
+.map-pin.them{background:#7B8A99}
+.map-pin.them::after{content:'';position:absolute;width:9px;height:9px;background:#fff;border-radius:50%;top:5px;left:5px}
+.map-list{display:flex;flex-direction:column;gap:9px;justify-content:center}
+.map-li{display:flex;align-items:center;gap:12px;background:var(--white);border:1px solid var(--border-s);border-radius:var(--r);padding:12px 15px}
+.map-li.hl{border-color:var(--ember);background:var(--ember-light)}
+.map-li .mk{width:22px;height:22px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-family:var(--mono);font-size:11px;font-weight:500;color:#fff;flex-shrink:0;background:#7B8A99}
+.map-li.hl .mk{background:var(--ember)}
+.map-li .tx{font-size:14px;color:var(--ink-2)}.map-li.hl .tx{color:var(--ink);font-weight:600}
+
+/* REAL RESULTS — lead cards (default) + image grid (override) */
+.leadgrid{display:grid;grid-template-columns:repeat(3,1fr);gap:16px;margin-top:8px}
+.lead-card{background:rgba(255,255,255,.04);border:1px solid var(--border-light);border-radius:var(--rl);overflow:hidden;display:flex;flex-direction:column}
+.lead-head{display:flex;align-items:center;gap:8px;padding:12px 15px;background:rgba(255,87,51,.13);border-bottom:1px solid rgba(255,87,51,.22)}
+.lead-head .flame{font-size:14px;line-height:1}
+.lead-head .tt{font-family:var(--mono);font-size:10px;font-weight:500;letter-spacing:.12em;text-transform:uppercase;color:var(--ember-soft)}
+.lead-head .badge{margin-left:auto;font-family:var(--mono);font-size:9px;text-transform:uppercase;letter-spacing:.08em;background:var(--ember);color:#fff;padding:4px 9px;border-radius:5px}
+.lead-body{padding:16px 18px;flex:1}
+.lead-name{font-family:var(--serif);font-size:18px;font-weight:700;color:#fff;margin-bottom:3px}
+.lead-id{font-family:var(--mono);font-size:9.5px;letter-spacing:.08em;color:rgba(255,255,255,.36);margin-bottom:13px}
+.lead-details{font-size:13.5px;line-height:1.62;color:rgba(255,255,255,.74)}
+.lead-foot{padding:11px 18px;border-top:1px solid var(--border-light);font-family:var(--mono);font-size:9px;letter-spacing:.1em;text-transform:uppercase;color:rgba(255,255,255,.34);display:flex;align-items:center;gap:7px}
+.lead-foot .dot{width:6px;height:6px;border-radius:50%;background:#3FBF63;box-shadow:0 0 8px rgba(63,191,99,.7)}
+.proofgrid{display:grid;grid-template-columns:repeat(3,1fr);gap:16px;margin-top:8px}
+.proofshot{position:relative;background:rgba(255,255,255,.04);border:1px solid var(--border-light);border-radius:var(--rl);overflow:hidden;aspect-ratio:9/16;display:flex;align-items:center;justify-content:center}
+.proofshot img{width:100%;height:100%;object-fit:cover;display:block}
+.proofshot .ph-label{position:absolute;font-family:var(--mono);font-size:10px;letter-spacing:.14em;text-transform:uppercase;color:rgba(255,255,255,.34);text-align:center;padding:0 16px;line-height:1.7;display:none}
+.proofshot.ph .ph-label{display:block}
+.proofshot.ph{background:repeating-linear-gradient(135deg,rgba(255,255,255,.03),rgba(255,255,255,.03) 12px,rgba(255,255,255,.05) 12px,rgba(255,255,255,.05) 24px)}
+
+/* ROI calculator */
+.roi{background:var(--obsidian-2);border:1px solid var(--border-light);border-radius:var(--rxl);padding:26px 30px;margin-top:10px;position:relative;overflow:hidden}
+.roi::before{content:'';position:absolute;inset:0;pointer-events:none;background-image:var(--noise)}
+.roi>*{position:relative;z-index:1}
+.roi-grid{display:grid;grid-template-columns:1fr 1fr;gap:26px;align-items:center}
+.roi-controls .ctl{margin-bottom:20px}.roi-controls .ctl:last-child{margin-bottom:0}
+.roi-controls .ctl .top{display:flex;justify-content:space-between;align-items:baseline;margin-bottom:9px}
+.roi-controls .ctl .top label{font-family:var(--mono);font-size:10.5px;letter-spacing:.12em;text-transform:uppercase;color:rgba(255,255,255,.5)}
+.roi-controls .ctl .top .out{font-family:var(--serif);font-size:23px;font-weight:700;color:#fff}
+.roi-range{-webkit-appearance:none;appearance:none;width:100%;height:5px;border-radius:5px;background:rgba(255,255,255,.14);outline:none}
+.roi-range::-webkit-slider-thumb{-webkit-appearance:none;width:21px;height:21px;border-radius:50%;background:var(--ember);cursor:pointer;border:3px solid #fff;box-shadow:0 2px 8px rgba(0,0,0,.4)}
+.roi-range::-moz-range-thumb{width:21px;height:21px;border-radius:50%;background:var(--ember);cursor:pointer;border:3px solid #fff}
+.roi-out{text-align:center;border-left:1px solid var(--border-light);padding-left:26px}
+.roi-out .big{font-family:var(--serif);font-size:clamp(40px,5vw,62px);font-weight:900;color:var(--ember-soft);line-height:1}
+.roi-out .big-l{font-family:var(--mono);font-size:10px;letter-spacing:.16em;text-transform:uppercase;color:rgba(255,255,255,.45);margin-top:10px}
+.roi-out .line{display:flex;justify-content:space-between;font-size:14px;color:rgba(255,255,255,.7);padding:9px 0;border-bottom:1px solid var(--border-light)}
+.roi-out .line:first-of-type{margin-top:20px}.roi-out .line:last-child{border-bottom:none}
+.roi-out .line b{color:#fff;font-weight:600}
+.roi-verdict{font-family:var(--body);font-style:italic;font-size:14.5px;color:#BFE6C7;margin-top:14px;line-height:1.55}
+
+/* plans */
+.plangrid{display:grid;grid-template-columns:repeat(3,1fr);gap:17px;margin-top:10px}
+.plan{background:var(--white);border:1px solid var(--border-s);border-radius:var(--rxl);overflow:hidden;display:flex;flex-direction:column}
+.slide.dark .plan{background:rgba(255,255,255,.04);border-color:var(--border-light)}
+.plan.rec{border:2px solid var(--ember);box-shadow:0 18px 44px rgba(255,87,51,.16);transform:scale(1.025)}
+.plan-badge{font-family:var(--mono);font-size:9px;font-weight:500;letter-spacing:.12em;text-transform:uppercase;background:var(--ember);color:#fff;padding:5px 11px;border-radius:5px;align-self:flex-start;margin:16px 20px 0}
+.plan-tier{font-family:var(--mono);font-size:10px;font-weight:500;letter-spacing:.16em;text-transform:uppercase;color:var(--ink-4);margin:14px 20px 3px}
+.slide.dark .plan-tier{color:rgba(255,255,255,.4)}
+.plan-price{font-family:var(--serif);font-size:35px;font-weight:900;color:var(--ink);padding:0 20px;line-height:1}
+.slide.dark .plan-price{color:#fff}
+.plan-price span{font-family:var(--body);font-size:14px;font-weight:400;color:var(--ink-4)}
+.plan-build{font-family:var(--mono);font-size:11px;color:var(--ember);letter-spacing:.05em;margin:9px 20px 13px;padding-bottom:13px;border-bottom:1px solid var(--border)}
+.slide.dark .plan-build{border-color:var(--border-light)}
+.plan-feats{list-style:none;padding:0 20px 20px;font-size:13px;color:var(--ink-3);line-height:1.6;flex:1}
+.slide.dark .plan-feats{color:rgba(255,255,255,.62)}
+.plan-feats li{display:flex;gap:9px;align-items:flex-start;padding:7px 0;border-bottom:1px solid var(--border)}
+.slide.dark .plan-feats li{border-color:var(--border-light)}
+.plan-feats li:last-child{border-bottom:none}
+.plan-feats li::before{content:'—';color:var(--ember);font-weight:700;flex-shrink:0}
+
+/* bridge */
+.slide.bridge .inner{text-align:center;max-width:760px}
+.bridge-arrow{font-size:50px;color:var(--ember);margin:22px 0;animation:bob 1.8s ease-in-out infinite}
+@keyframes bob{0%,100%{transform:translateY(0)}50%{transform:translateY(9px)}}
+.bridge-link{display:inline-block;margin-top:20px;font-family:var(--mono);font-size:13px;letter-spacing:.04em;color:var(--ember-soft);text-decoration:none;border:1px solid rgba(255,122,92,.4);border-radius:999px;padding:11px 22px;transition:.15s}
+.bridge-link:hover{background:rgba(255,122,92,.12)}
+
+/* chrome */
+.chrome{position:fixed;bottom:0;left:0;right:0;z-index:60;display:flex;align-items:center;justify-content:space-between;padding:13px 22px;background:rgba(15,15,16,.9);backdrop-filter:blur(10px);border-top:1px solid var(--border-light);transition:transform .28s}
+.chrome.hidden{transform:translateY(110%)}
+.chrome-l,.chrome-r{display:flex;align-items:center;gap:9px}
+.cbtn{font-family:var(--mono);font-size:10px;font-weight:500;letter-spacing:.1em;text-transform:uppercase;padding:9px 14px;border-radius:999px;border:1px solid rgba(255,255,255,.16);background:transparent;color:rgba(255,255,255,.72);cursor:pointer;transition:.15s;display:inline-flex;align-items:center;gap:6px}
+.cbtn:hover{background:rgba(255,255,255,.08);color:#fff}
+.cbtn.on{background:rgba(255,87,51,.22);border-color:rgba(255,87,51,.5);color:#fff}
+.cbtn.primary{background:var(--ember);border-color:var(--ember);color:#fff}.cbtn.primary:hover{background:var(--ember-dark)}
+.counter{font-family:var(--mono);font-size:11px;color:rgba(255,255,255,.4);letter-spacing:.06em;min-width:46px;text-align:center}
+.dots{display:flex;gap:5px;align-items:center;flex-wrap:wrap;max-width:40vw;justify-content:center}
+.dot{width:7px;height:7px;border-radius:50%;background:rgba(255,255,255,.22);cursor:pointer;transition:.15s;border:none;padding:0}
+.dot:hover{background:rgba(255,255,255,.5)}
+.dot.active{background:var(--ember);width:20px;border-radius:4px}
+
+/* adjust panel */
+.panel{position:fixed;top:0;right:0;width:380px;max-width:100%;height:100vh;background:var(--white);border-left:1px solid var(--border-s);z-index:70;transform:translateX(100%);transition:transform .3s cubic-bezier(.2,.7,.2,1);overflow-y:auto;padding:26px;box-shadow:-12px 0 40px rgba(0,0,0,.22)}
+.panel.open{transform:translateX(0)}
+.panel h3{font-family:var(--serif);font-size:21px;font-weight:700;color:var(--ink);margin-bottom:5px}
+.panel .pdesc{font-size:13px;color:var(--ink-3);line-height:1.6;margin-bottom:20px}
+.panel-close{position:absolute;top:20px;right:22px;background:none;border:none;font-size:22px;color:var(--ink-4);cursor:pointer;line-height:1}
+.panel-close:hover{color:var(--ink)}
+.pfld{display:flex;flex-direction:column;margin-bottom:14px}
+.pfld label{font-family:var(--mono);font-size:10px;font-weight:500;letter-spacing:.1em;text-transform:uppercase;color:var(--ink-4);margin-bottom:6px}
+.pfld input,.pfld select{width:100%;font-family:var(--body);font-size:14.5px;padding:11px 13px;border:1px solid var(--border-s);border-radius:var(--r);background:var(--cream);color:var(--ink)}
+.pbtn{font-family:var(--mono);font-size:11px;font-weight:500;letter-spacing:.1em;text-transform:uppercase;padding:12px 24px;border-radius:999px;border:1px solid var(--ember);background:var(--ember);color:#fff;cursor:pointer;width:100%}
+
+@media(max-width:920px){
+  .statrow,.twocol,.plangrid,.roi-grid,.mappack,.proofgrid,.leadgrid,.grid2x2,.fp-grid,.ctl-grid,.summary-row{grid-template-columns:1fr}
+  .fp-left{margin-bottom:10px}
+  .roi-out{border-left:none;border-top:1px solid var(--border-light);padding-left:0;padding-top:20px;margin-top:6px}
+  .slide{padding:34px 24px 96px}.dots{max-width:30vw}
+  .ctl-wrap,.ctl-top,.ctl-actions{padding-left:18px;padding-right:18px}
+}
+/* preflight */
+.preflight{position:fixed;inset:0;z-index:500;background:rgba(15,15,16,.72);backdrop-filter:blur(6px);display:flex;align-items:center;justify-content:center;padding:24px}
+.preflight[hidden]{display:none!important}
+.pf-card{background:var(--white);border-radius:var(--rxl);max-width:560px;width:100%;padding:28px 30px;box-shadow:0 24px 64px rgba(0,0,0,.28)}
+.pf-card h2{font-family:var(--serif);font-size:24px;font-weight:900;color:var(--ink);margin-bottom:8px}
+.pf-card .pf-lead{font-size:14.5px;color:var(--ink-3);line-height:1.65;margin-bottom:18px}
+.pf-list{margin:0 0 18px;padding:0;list-style:none}
+.pf-list li{font-size:14px;padding:8px 12px;border-radius:var(--r);margin-bottom:6px;line-height:1.45}
+.pf-list li.client{background:var(--red-l);color:#7A1A0A;border:1px solid var(--red-b)}
+.pf-list li.gem{background:var(--amber-l);color:#7A5800;border:1px solid var(--amber-b)}
+.pf-actions{display:flex;gap:10px;flex-wrap:wrap}
+@media print{.chrome,.panel,.progress,.control,.ctl-actions,.preflight{display:none!important}body{overflow:visible}.slide{position:relative;display:flex!important;page-break-after:always;min-height:100vh}}
+</style>
+</head>
+<body>
+
+<!-- ============================ CONTROL VIEW ============================ -->
+<div class="control" id="control" hidden>
+  <div class="ctl-top">
+    <div class="ctl-mark"><span class="wm-g">A</span><span class="wm-e">han</span><span class="wm-g">a</span></div>
+    <div class="ctl-sub">Consultation Control · build the presentation</div>
+  </div>
+  <div class="ctl-wrap">
+    <div class="sb-bar off" id="sbBar">
+      <div class="sb-status"><span class="dot"></span><span id="sbStatus">Supabase not configured</span></div>
+      <select id="apptSelect"><option value="">— Manual entry (no database) —</option></select>
+      <button type="button" class="mini-btn" id="sbRefresh">Refresh</button>
+      <div class="sb-hint">Pick the customer in front of you to auto-load their lead + appointment. To connect a database, set <code>SUPABASE</code> at the top of this file's script (URL, anon key, table + column map).</div>
+    </div>
+
+    <div class="summary-row">
+      <div class="scard"><div class="lbl">Completeness</div>
+        <div class="completeness"><div class="comp-num" id="compNum">0/0</div><div class="comp-txt" id="compTxt">—</div></div>
+      </div>
+      <div class="scard"><div class="lbl">Recommended plan <span id="planSrc" class="src"></span></div>
+        <div class="plan-rec"><span class="plan-pill" id="planPill">Enhanced</span><span class="plan-why" id="planWhy"></span><button type="button" class="mini-btn" id="planUse">Use this</button></div>
+      </div>
+    </div>
+
+    <form id="ctlForm"></form>
+  </div>
+
+  <div class="ctl-actions">
+    <button type="button" class="cbig primary" id="btnRun">▶ Run presentation</button>
+    <button type="button" class="cbig dark" id="btnCopyPresent">Copy present link</button>
+    <button type="button" class="cbig" id="btnCopyInject">Copy inject JSON</button>
+    <span class="spacer"></span>
+    <span class="copied" id="copied"></span>
+  </div>
+</div>
+
+<!-- ============================ DECK ============================ -->
+<div class="deck-wrap" id="deckWrap" hidden>
+  <div class="progress" id="progress"></div>
+  <div class="deck" id="deck" aria-live="polite"></div>
+  <div class="chrome" id="chrome">
+    <div class="chrome-l">
+      <button class="cbtn" id="btnPrev">← Prev</button>
+      <span class="counter" id="counter">1 / 1</span>
+      <button class="cbtn" id="btnNext">Next →</button>
+    </div>
+    <div class="dots" id="dots"></div>
+    <div class="chrome-r">
+      <button class="cbtn" id="btnAdjust" title="Adjust figures (A)">Adjust</button>
+      <button class="cbtn" id="btnSetup" title="Back to control (E)">Setup</button>
+      <button class="cbtn" id="btnFull" title="Fullscreen (F)">Fullscreen</button>
+      <button class="cbtn primary" id="btnReveal" title="Jump to reveal (R)">→ Reveal</button>
+    </div>
+  </div>
+  <aside class="panel" id="adjustPanel" aria-label="Adjust figures">
+    <button class="panel-close" id="closeAdjust">×</button>
+    <h3>Adjust figures</h3>
+    <p class="pdesc">Tweak the numbers live — Real Cost and Your Plan update instantly. Nothing is saved.</p>
+    <form id="adjustForm">
+      <div class="pfld"><label>Average job size</label><input data-f="discovery.avgJobValue" placeholder="$850"></div>
+      <div class="pfld"><label>Volume — jobs / month</label><input data-f="discovery.jobsPerMonth" placeholder="20"></div>
+      <div class="pfld"><label>Extra jobs / month</label><input data-f="enrichment.extraJobsPerMonth" placeholder="industry avg"></div>
+      <div class="pfld"><label>Recommended plan</label>
+        <select data-f="enrichment.recommendedPlan"><option value="">Auto</option><option value="starter">Starter</option><option value="enhanced">Enhanced</option><option value="premium">Premium</option></select>
+      </div>
+      <button type="button" class="pbtn" id="btnApplyAdjust">Apply to slides</button>
+    </form>
+  </aside>
+</div>
+
+<div class="preflight" id="preflight" hidden>
+  <div class="pf-card" role="dialog" aria-labelledby="pfTitle">
+    <h2 id="pfTitle">Before you present</h2>
+    <p class="pf-lead" id="pfLead">A few placeholders are still empty. Collect what you can from the client now — Gemini/Make fields should be filled before the call when possible.</p>
+    <ul class="pf-list" id="pfList"></ul>
+    <div class="pf-actions">
+      <button type="button" class="cbig primary" id="pfBack">Back to setup</button>
+      <button type="button" class="cbig" id="pfProceed" hidden>Present anyway (tokens visible)</button>
+    </div>
+  </div>
+</div>
+
+<!-- ===== Make pulls this template from the repo, sets the per-client data on the
+     marked line below, and republishes to its own Netlify URL. ================
+     On the line tagged __AHANA_INJECT__, replace the word  null  with the enriched
+     client JSON object (keep the trailing  ; ). Then deploy the file to Netlify.
+     A page with injected data opens straight into the deck (add ?control to edit). ===== -->
+<script>
+window.AHANA_DATA = null; /* __AHANA_INJECT__ */
+</script>
+
+<script>
+(function(){
+'use strict';
+
+/* =====================================================================
+   SUPABASE (optional) — fill these to enable the appointments dropdown.
+   Uses the public anon key + RLS (read-only). Leave url blank to disable.
+   ===================================================================== */
+var SUPABASE={
+  url:'',          // e.g. 'https://xxxx.supabase.co'  (leave blank → manual entry / ?d= / inject)
+  anonKey:'',      // public anon key — RLS read-only on leads
+  table:'leads',
+  labelColumn:'business_name',
+  // booked appointments, newest first. Real Ahana-CRM lead columns + scrape_metadata (holds appointment_brief).
+  select:'id,business_name,contact_name,trade,city,state,website,average_project_size,'+
+         'projects_per_month,additional_projects_wanted,team_count,google_rating,'+
+         'google_review_count,scrape_metadata,appointment_at,status',
+  filter:'appointment_at=not.is.null&order=appointment_at.desc&limit=100'
+};
+
+/* ---------- adapter: Ahana-CRM lead row / appointment-booked webhook -> deck model ----------
+   Lets Make pass the existing appointment payload (or a raw lead row) almost verbatim.       */
+var INTAKE_Q={
+  average_project_size:'What is your average project size?',
+  projects_per_month:'How many projects are they taking on a month?',
+  additional_projects_wanted:'How many additional projects would they like to be taking on?',
+  team_count:'How many teams do they have?'
+};
+function adaptCrmPayload(raw){
+  if(!raw||typeof raw!=='object')return raw;
+  // already the deck's native shape? pass through.
+  if(raw.client&&typeof raw.client==='object'&&(raw.client.businessName||raw.client.trade))return raw;
+  var leadN=(raw.lead&&typeof raw.lead==='object')?raw.lead:{};
+  var briefN=(raw.brief&&typeof raw.brief==='object')?raw.brief:{};
+  var intakeN=(raw.intake&&typeof raw.intake==='object')?raw.intake:{};
+  var repN=(raw.rep&&typeof raw.rep==='object')?raw.rep:{};
+  var isCrm=raw.webhook_version||raw.business_name||leadN.business_name||raw.appointment_brief||raw.scrape_metadata||raw.rank_actions||raw.average_project_size||intakeN.average_project_size;
+  if(!isCrm)return raw;
+  var meta=(raw.scrape_metadata&&typeof raw.scrape_metadata==='object')?raw.scrape_metadata:{};
+  var brief=(raw.appointment_brief&&typeof raw.appointment_brief==='object')?raw.appointment_brief:((meta.appointment_brief&&typeof meta.appointment_brief==='object')?meta.appointment_brief:briefN);
+  var intake=(meta.appointment_intake&&typeof meta.appointment_intake==='object')?meta.appointment_intake:intakeN;
+  var planI=(meta.plan_interest&&typeof meta.plan_interest==='object')?meta.plan_interest:{};
+  function gv(){for(var i=0;i<arguments.length;i++){var v=arguments[i];if(v!=null&&v!=='')return v;}return '';}
+  function ar(){for(var i=0;i<arguments.length;i++){if(Array.isArray(arguments[i])&&arguments[i].length)return arguments[i];}return [];}
+  function firstWord(s){return String(s||'').trim().split(/\s+/)[0]||'';}
+  function disco(key){var q=INTAKE_Q[key],v=String(gv(intake[key],intakeN[key],raw[key])).trim();if(q&&v.indexOf(q)===0)v=v.slice(q.length).trim();return v;}
+  var d=emptyData();
+  d.meta.leadId=gv(raw.lead_id,raw.id);
+  d.meta.repName=gv(repN.first_name,raw.rep_first_name,raw.rep_name);
+  d.client.businessName=gv(leadN.business_name,raw.business_name);
+  d.client.ownerFirstName=firstWord(gv(leadN.contact_name,raw.contact_name));
+  d.client.trade=gv(leadN.trade,raw.trade);
+  d.client.city=gv(leadN.city,raw.city);
+  d.assets.websiteUrl=gv(leadN.website,raw.website);
+  d.discovery.avgJobValue=disco('average_project_size');
+  d.discovery.jobsPerMonth=disco('projects_per_month');
+  d.enrichment.extraJobsPerMonth=disco('additional_projects_wanted');
+  d.discovery.crews=disco('team_count');
+  d.enrichment.recommendedPlan=String(gv(raw.plan_name,planI.name)).toLowerCase();
+  // Google footprint from webhook brief (v2 brief.* or legacy flat / appointment_brief)
+  var score=gv(briefN.google_profile_score,raw.google_profile_score,brief.google_profile_score);
+  if(score!=='')d.footprint.profileScore=score;
+  d.footprint.rankingStatus=gv(briefN.current_ranking,raw.current_ranking,brief.current_ranking,ar(briefN.ranking_points,raw.ranking_points,brief.ranking_points)[0]);
+  d.footprint.summary=gv(ar(briefN.meeting_talking_points,raw.meeting_talking_points,brief.meeting_talking_points)[0]);
+  d.footprint.profileNotes=ar(briefN.profile_gaps,raw.profile_gaps,brief.profile_gaps);
+  d.footprint.citationsPresent=ar(briefN.citations_present,raw.citations_present,brief.citations_present);
+  d.footprint.citationsMissing=ar(briefN.citations_missing,raw.citations_missing,brief.citations_missing);
+  d.footprint.waysToRank=ar(briefN.rank_actions,raw.rank_actions,brief.rank_actions);
+  d.footprint.diyTips=ar(briefN.diy_website_actions,raw.diy_website_actions,brief.diy_website_actions);
+  // let any explicit deck-shaped blocks override (e.g. Gemini Prompt A competitors)
+  ['client','discovery','enrichment','footprint','assets','meta'].forEach(function(k){
+    if(raw[k]&&typeof raw[k]==='object'&&!Array.isArray(raw[k])){var o={};o[k]=raw[k];mergeDeep(d,o);}
+  });
+  return d;
+}
+
+/* ---------- canonical plans (build 2k/3k/5k · blogs 1/2/4) ---------- */
+var PLANS={
+  starter:{id:'starter',name:'Starter',price:249,build:2000,
+    feats:['5-page professional website','1 SEO blog post every month','Targets up to 3 main keywords','Google Business Profile management','Monthly SEO ranking report']},
+  enhanced:{id:'enhanced',name:'Enhanced',price:549,build:3000,
+    feats:['8-page site + service detail pages','2 SEO blog posts every month','Targets up to 6 main keywords','Location SEO for your service area','Priority updates + advanced reporting']},
+  premium:{id:'premium',name:'Premium',price:1499,build:5000,
+    feats:['12 pages — full services hub','4 SEO blog posts every month','Targets up to 10 main keywords','Local landing pages per city served','AI search visibility (Premium exclusive)']}
+};
+
+var SAMPLE_LEADS=[
+  {id:'E515CE11',name:'Kerry R.',type:'Kitchen',details:'We need to renovate our kitchen top to bottom — flooring (possibly subfloor), cabinets and counters, tiling, lighting and electrical. Open to suggestions. It’s about 8×15′. Timeframe: within 6 months.'},
+  {id:'0A1C14CF',name:'William V.',type:'Bathroom',details:'Due to my wife’s mobility issues we need to modernize her shower stall to make it easier and safer for her to get in and out.'},
+  {id:'8C53BCB4',name:'Lucia P.',type:'Bath + Basement',details:'I’m requesting a quote for a bathroom and basement renovation.'}
+];
+
+/* ---------- industry averages (slug = CRM industry e.g. "plumbing", "roofing") ---------- */
+var INDUSTRIES={
+  plumbing:{avgJob:450,volume:55,leads:12,extra:3,occ:'plumber',occPlural:'plumbers',label:'plumbing'},
+  roofing:{avgJob:9500,volume:12,leads:2,extra:1,occ:'roofer',occPlural:'roofers',label:'roofing'},
+  hvac:{avgJob:6000,volume:20,leads:6,extra:2,occ:'HVAC technician',occPlural:'HVAC technicians',label:'HVAC'},
+  electrical:{avgJob:550,volume:48,leads:10,extra:3,occ:'electrician',occPlural:'electricians',label:'electrical'},
+  landscaping:{avgJob:4200,volume:18,leads:5,extra:2,occ:'landscaper',occPlural:'landscapers',label:'landscaping'},
+  painting:{avgJob:3200,volume:15,leads:6,extra:2,occ:'painter',occPlural:'painters',label:'painting'},
+  flooring:{avgJob:3800,volume:14,leads:5,extra:2,occ:'flooring contractor',occPlural:'flooring contractors',label:'flooring'},
+  remodeling:{avgJob:18000,volume:8,leads:2,extra:1,occ:'remodeler',occPlural:'remodelers',label:'remodeling'},
+  pest:{avgJob:350,volume:60,leads:14,extra:4,occ:'pest control technician',occPlural:'pest control technicians',label:'pest control'},
+  garage:{avgJob:1200,volume:30,leads:9,extra:3,occ:'garage door technician',occPlural:'garage door technicians',label:'garage door'},
+  cleaning:{avgJob:250,volume:70,leads:16,extra:5,occ:'cleaner',occPlural:'cleaners',label:'cleaning'},
+  fencing:{avgJob:4500,volume:12,leads:4,extra:2,occ:'fence contractor',occPlural:'fence contractors',label:'fencing'},
+  concrete:{avgJob:6500,volume:10,leads:3,extra:1,occ:'concrete contractor',occPlural:'concrete contractors',label:'concrete'},
+  tree:{avgJob:1800,volume:22,leads:7,extra:2,occ:'arborist',occPlural:'arborists',label:'tree service'},
+  pool:{avgJob:5000,volume:14,leads:4,extra:2,occ:'pool service pro',occPlural:'pool service pros',label:'pool service'}
+};
+var HIGH_TICKET=/roof|remodel|renovat|hvac|heat|cool|concrete|masonry|pool|construct|design.?build|general contract/;
+function industryKey(trade){
+  var t=String(trade||'').toLowerCase().trim().replace(/\s+/g,' ');
+  if(!t)return null;
+  if(INDUSTRIES[t])return t;
+  if(/plumb/.test(t))return 'plumbing';
+  if(/roof/.test(t))return 'roofing';
+  if(/hvac|heat|cool|air condition|furnace/.test(t))return 'hvac';
+  if(/electric/.test(t))return 'electrical';
+  if(/landscap|lawn|yard/.test(t))return 'landscaping';
+  if(/paint/.test(t))return 'painting';
+  if(/floor/.test(t))return 'flooring';
+  if(/remodel|renovat|contractor|construct|design.?build|general contract/.test(t))return 'remodeling';
+  if(/pest|extermin|termite/.test(t))return 'pest';
+  if(/garage/.test(t))return 'garage';
+  if(/clean|maid|janitor/.test(t))return 'cleaning';
+  if(/fenc/.test(t))return 'fencing';
+  if(/concrete|paver|masonry/.test(t))return 'concrete';
+  if(/tree|arbor/.test(t))return 'tree';
+  if(/pool|spa/.test(t))return 'pool';
+  return null;
+}
+function industryStrict(trade){var k=industryKey(trade);return k?INDUSTRIES[k]:null;}
+function industryFor(trade){return industryStrict(trade)||{avgJob:1500,volume:25,leads:8,extra:2,occ:'contractor',occPlural:'contractors',label:'home services'};}
+
+/* ---------- data model ---------- */
+function emptyData(){
+  return {
+    meta:{repName:'',leadId:''},
+    client:{ownerFirstName:'',businessName:'',trade:'',city:''},
+    discovery:{avgJobValue:'',jobsPerMonth:'',serviceAreas:'',crews:'',annualRevenue:''},
+    enrichment:{searchQuery:'',recommendedPlan:'',competitors:[],industryLeadsPerMonth:'',extraJobsPerMonth:'',
+      auditSummary:'',localInsight:'',painPoint:'',planRationale:'',roiNarrative:''},
+    footprint:{profileScore:'',rankingQuery:'',rankingStatus:'',competitorCount:'',summary:'',
+      profileNotes:[],citationsPresent:[],citationsMissing:[],waysToRank:[],diyTips:[]},
+    assets:{websiteUrl:''}
+  };
+}
+function mergeDeep(t,s){
+  if(!s||typeof s!=='object')return t;
+  Object.keys(s).forEach(function(k){
+    var v=s[k];
+    if(Array.isArray(v)){if(v.length)t[k]=v;}
+    else if(v&&typeof v==='object'){t[k]=t[k]||{};mergeDeep(t[k],v);}
+    else if(v!==undefined&&v!==null&&v!=='')t[k]=v;
+  });
+  return t;
+}
+function setPath(o,path,v){var pr=path.split('.');for(var i=0;i<pr.length-1;i++){o[pr[i]]=o[pr[i]]||{};o=o[pr[i]];}o[pr[pr.length-1]]=v;}
+function getPath(o,path){var pr=path.split('.');for(var i=0;i<pr.length;i++){if(o==null)return undefined;o=o[pr[i]];}return o;}
+
+function b64uEnc(str){return btoa(encodeURIComponent(str).replace(/%([0-9A-F]{2})/g,function(_,p){return String.fromCharCode(parseInt(p,16));})).replace(/\+/g,'-').replace(/\//g,'_').replace(/=+$/,'');}
+function b64uDec(str){try{var b=str.replace(/-/g,'+').replace(/_/g,'/');while(b.length%4)b+='=';return decodeURIComponent(Array.prototype.map.call(atob(b),function(c){return '%'+('00'+c.charCodeAt(0).toString(16)).slice(-2);}).join(''));}catch(e){return null;}}
+function getInjected(){try{var x=window.AHANA_DATA;if(x&&typeof x==='object')return adaptCrmPayload(x);}catch(e){}return null;}
+function parseParams(){
+  var p=new URLSearchParams(location.search),d=emptyData();
+  if(p.has('d')){var raw=b64uDec(p.get('d'));if(raw){try{mergeDeep(d,adaptCrmPayload(JSON.parse(raw)));}catch(e){console.warn('bad ?d=',e);}}}
+  var flat={'client.businessName':p.get('business'),'client.ownerFirstName':p.get('owner')||p.get('client'),
+    'client.trade':p.get('trade')||p.get('industry'),'client.city':p.get('city'),
+    'meta.repName':p.get('rep'),'enrichment.recommendedPlan':p.get('plan'),'assets.websiteUrl':p.get('website')||p.get('preview')};
+  Object.keys(flat).forEach(function(path){var v=flat[path];if(v)setPath(d,path,v);});
+  return d;
+}
+
+/* ---------- helpers ---------- */
+function esc(s){if(s==null)return '';var x=document.createElement('div');x.textContent=String(s);return x.innerHTML;}
+function hasV(x){return x!=null&&String(x).trim()!==''&&!(Array.isArray(x)&&!x.length);}
+function money(n){var x=parseFloat(String(n).replace(/[^0-9.]/g,''));if(isNaN(x))return null;return '$'+x.toLocaleString('en-US',{maximumFractionDigits:0});}
+function numOf(n){var x=parseFloat(String(n).replace(/[^0-9.]/g,''));return isNaN(x)?null:x;}
+/* token + value-or-token (HTML) */
+function tokD(key){return '<span class="tok td">{{'+key+'}}</span>';}
+function tokG(label){return '<span class="tok tg">{{'+(label||'Gemini input')+'}}</span>';}
+function vD(x,key){return hasV(x)?esc(x):tokD(key);}
+function vG(x,label){return hasV(x)?esc(x):tokG(label);}
+/* HTML identity helpers (use WITHOUT esc) */
+function Biz(d){return vD(d.client.businessName,'business_name');}
+function Trade(d){return vD(d.client.trade,'industry');}
+function City(d){return vD(d.client.city,'city');}
+function Name(d){return vD(d.client.ownerFirstName,'client_name');}
+/* plain text (titles/attrs) */
+function bizPlain(d){return d.client.businessName||'Your business';}
+function tradePlain(d){return d.client.trade||'';}
+function cityPlain(d){return d.client.city||'your area';}
+/* industry slug label vs occupation for copy */
+function tradeIndustry(d){
+  if(!hasV(d.client.trade))return tokD('industry');
+  var ind=industryStrict(d.client.trade);
+  return esc(ind?ind.label:d.client.trade);
+}
+function tradeOccPlural(d){
+  if(!hasV(d.client.trade))return tokD('occupation_plural');
+  var ind=industryStrict(d.client.trade);
+  return esc(ind?ind.occPlural:d.client.trade);
+}
+function tradeOccSingular(d){
+  if(!hasV(d.client.trade))return tokD('occupation');
+  var ind=industryStrict(d.client.trade);
+  return esc(ind?ind.occ:d.client.trade);
+}
+function tradeInCity(d){return tradeIndustry(d)+' in '+City(d);}
+
+/* stated vs display vs calc — deck shows placeholders; calc uses fallbacks only for sliders */
+function statedAvgJob(d){return numOf(d.discovery.avgJobValue);}
+function statedVolume(d){return numOf(d.discovery.jobsPerMonth);}
+function statedWebLeads(d){return numOf(d.enrichment.industryLeadsPerMonth);}
+function statedExtraJobs(d){return numOf(d.enrichment.extraJobsPerMonth);}
+function avgJobDisplay(d){var v=statedAvgJob(d);return v!=null?esc(money(v)):tokD('average_job');}
+function volumeDisplay(d){var v=statedVolume(d);return v!=null?esc(String(v))+' jobs / mo':tokD('jobs_per_month');}
+function webLeadsDisplay(d){
+  var v=statedWebLeads(d);
+  if(v!=null)return String(v);
+  var ind=industryStrict(d.client.trade);
+  if(ind)return String(ind.leads);
+  return null;
+}
+function webLeadsToken(d){var v=webLeadsDisplay(d);return v!=null?v:tokG('industry_leads_per_month');}
+function extraJobsDisplay(d){
+  var v=statedExtraJobs(d);
+  if(v!=null)return String(v);
+  var ind=industryStrict(d.client.trade);
+  if(ind)return String(ind.extra);
+  return null;
+}
+function extraJobsToken(d){var v=extraJobsDisplay(d);return v!=null?v:tokD('extra_jobs_per_month');}
+function avgJobCalc(d){return statedAvgJob(d)||industryFor(d.client.trade).avgJob;}
+function volumeCalc(d){return statedVolume(d)||industryFor(d.client.trade).volume;}
+function webLeadsCalc(d){
+  var v=statedWebLeads(d);
+  if(v!=null)return v;
+  var ind=industryStrict(d.client.trade);
+  return ind?ind.leads:8;
+}
+function extraJobsCalc(d){
+  var v=statedExtraJobs(d);
+  if(v!=null)return v;
+  var ind=industryStrict(d.client.trade);
+  return ind?ind.extra:2;
+}
+function plan(d){
+  var id=String(d.enrichment.recommendedPlan||'').toLowerCase();
+  if(id&&PLANS[id])return PLANS[id];
+  if(hasV(d.client.trade)&&hasV(d.client.city))return PLANS[autoPlan(d)]||PLANS.enhanced;
+  return null;
+}
+function planName(d){var p=plan(d);return p?p.name:tokD('recommended_plan');}
+function areaCount(d){var s=d.discovery.serviceAreas;if(!hasV(s))return 1;if(typeof s==='number')return s;var n=String(s).split(/[,;/]|\band\b|\+|&/).map(function(x){return x.trim();}).filter(Boolean).length;return Math.max(1,n);}
+function todayStr(){try{return new Date().toLocaleDateString('en-US',{month:'long',day:'numeric',year:'numeric'});}catch(e){return '';}}
+function query(d){return d.enrichment.searchQuery||((d.client.trade||'')+' '+(d.client.city||'')).trim();}
+function competitors(d){
+  if(Array.isArray(d.enrichment.competitors)&&d.enrichment.competitors.length)return d.enrichment.competitors;
+  return null;
+}
+
+/* ---------- plan recommendation (see ahana-consultation-plan-logic.md) ---------- */
+function autoPlan(d){
+  var areas=areaCount(d), aj=avgJobCalc(d), crews=numOf(d.discovery.crews)||1,
+      vol=volumeCalc(d), rev=numOf(d.discovery.annualRevenue), comp=numOf((d.footprint||{}).competitorCount);
+  if(rev==null){var aj0=statedAvgJob(d),v0=statedVolume(d);if(aj0&&v0)rev=aj0*v0*12;}
+  var pts=0;
+  pts+= areas>=3?2:(areas===2?1:0);
+  pts+= aj>=6000?2:(aj>=2000?1:0);
+  pts+= crews>=3?2:(crews===2?1:0);
+  pts+= (vol>=40||(rev&&rev>=1000000))?2:(vol>=20?1:0);
+  pts+= (comp&&comp>=15)?1:0;
+  if(areas>=3) return 'premium';
+  if(HIGH_TICKET.test((d.client.trade||'').toLowerCase()) && aj>=6000 && areas>=2) return 'premium';
+  if(pts>=5) return 'premium';
+  if(areas<=1 && pts<=1 && aj<1500) return 'starter';
+  return 'enhanced';
+}
+function planReason(d){
+  var id=autoPlan(d),areas=areaCount(d),aj=avgJobCalc(d),crews=numOf(d.discovery.crews)||1;
+  if(id==='premium')return 'Wide footprint or high-ticket, competitive market — per-city pages + AI visibility pay off ('+areas+' area'+(areas===1?'':'s')+', ~'+money(aj)+' jobs).';
+  if(id==='starter')return 'Small / single-town operator at ~'+money(aj)+' a job — presence-first is the honest fit.';
+  return 'Established local trade ('+areas+' area'+(areas===1?'':'s')+', ~'+money(aj)+' jobs, '+crews+' crew'+(crews===1?'':'s')+') — Enhanced is the right balance.';
+}
+
+/* footprint predicates */
+function fp(d){return d.footprint||{};}
+function hasFootprint(d){var f=fp(d);return !!(numOf(f.profileScore)!=null||hasV(f.summary)||(f.profileNotes&&f.profileNotes.length)||hasV(f.rankingStatus));}
+function hasCitations(d){var f=fp(d);return !!((f.citationsPresent&&f.citationsPresent.length)||(f.citationsMissing&&f.citationsMissing.length));}
+function hasWays(d){var f=fp(d);return !!(f.waysToRank&&f.waysToRank.length);}
+function hasDiy(d){var f=fp(d);return !!(f.diyTips&&f.diyTips.length);}
+
+/* =====================================================================
+   SLIDES
+   ===================================================================== */
+function r_cover(d){
+  var meta=[];meta.push('Prepared for '+Name(d));if(d.meta.repName)meta.push(esc(d.meta.repName));meta.push(todayStr());
+  return '<div class="cover-orb"></div><div class="cover-slash"></div><div class="inner">'+
+    '<div class="cover-mark"><span class="wm-g">A</span><span class="wm-e">han</span><span class="wm-g">a</span></div>'+
+    '<div class="cover-kicker">Digital Success Consultation</div>'+
+    '<h1>'+Biz(d)+'</h1>'+
+    '<p class="sub">A clear look at how customers find '+tradeOccPlural(d)+' in '+City(d)+' — and what it takes to be the one they call.</p>'+
+    '<div class="meta">'+meta.join('&nbsp;&nbsp;·&nbsp;&nbsp;')+'</div></div>';
+}
+function r_agenda(d){
+  return wrap('Today','Here\'s how today works, '+Name(d),
+    'Two reasons we\'re here — understand your business, and see if we can genuinely help you get found. No jargon, no pressure.',
+    '<div class="flow">'+
+    flowItem('1','Understand your business','A quick look at your numbers so everything we show you fits how you actually operate.')+
+    flowItem('2','See what customers find','What shows up when someone searches for '+tradeIndustry(d)+' in '+City(d)+' right now.')+
+    flowItem('3','Walk through what drives calls','Why getting found — not just having a website — is what brings in jobs.')+
+    flowItem('4','Your plan, then the reveal','A recommendation sized to your business — then we\'ll show you what we built for you.')+
+    '</div>'+
+    callout('ember','<strong>Either way, you win.</strong> By the end you\'ll have a clear picture you can act on yourself — or we handle the whole thing for you.'));
+}
+function r_recap(d){
+  return wrap('Your business','What we\'re working with','Here\'s the picture for '+Biz(d)+' — tell us if anything looks off.',
+    '<div class="grid2x2">'+
+    gcardH('Business',Biz(d))+gcardH('Market',tradeInCity(d))+
+    gcardH('Average job',avgJobDisplay(d))+gcardH('Volume',volumeDisplay(d))+
+    '</div>'+
+    callout('blue','We sized today\'s numbers to <strong>'+tradeIndustry(d)+'</strong> businesses in markets like '+City(d)+'. If your figures differ, we\'ll adjust them on the next slide.'));
+}
+function r_audit(d){
+  var comps=competitors(d), rows;
+  if(comps){
+    rows=comps.slice(0,3).map(function(c,i){
+      var rv=[c.rating?'<span class="star">★</span> '+esc(c.rating):'',c.reviews?esc(c.reviews):''].filter(Boolean).join(' &nbsp;·&nbsp; ');
+      return '<div class="serp-row"><div class="rank">'+(i+1)+'</div><div class="biz"><div class="nm">'+esc(c.name)+'</div>'+(rv?'<div class="rv">'+rv+'</div>':'')+'</div><div class="pin">Map pin</div></div>';
+    }).join('');
+  }else{
+    rows=[1,2,3].map(function(i){return '<div class="serp-row"><div class="rank">'+i+'</div><div class="biz"><div class="nm">'+tokG('competitor '+i)+'</div><div class="rv">'+tokG('rating · reviews')+'</div></div><div class="pin">Map pin</div></div>';}).join('');
+  }
+  var serp='<div class="serp"><div class="serp-bar"><span class="g"><span class="b">G</span><span class="r">o</span><span class="y">o</span><span class="b">g</span><span class="g2">l</span><span class="r">e</span></span><span class="q">'+vG(d.enrichment.searchQuery||(hasV(d.client.trade)&&hasV(d.client.city)?query(d):''),'search query')+'</span><span class="mag">⌕</span></div>'+
+    '<div class="serp-tag">Top of the local results</div>'+rows+
+    '<div class="serp-you"><div class="rank">?</div><div class="biz"><div class="nm">'+Biz(d)+'</div><div class="sub">Not showing on page one</div></div><div class="pin">You</div></div></div>';
+  var ins='';
+  if(hasV(d.enrichment.auditSummary))ins+=callout('blue',esc(d.enrichment.auditSummary));
+  if(hasV(d.enrichment.localInsight))ins+=callout('ember',esc(d.enrichment.localInsight));
+  if(!hasV(d.enrichment.auditSummary)&&!hasV(d.enrichment.localInsight)&&!comps)ins=callout('ember','<span class="tok tg">{{Gemini input}}</span> — Google search findings for this market.');
+  return wrap('The search audit','Let\'s see what a customer finds right now','<em>'+vG(d.enrichment.searchQuery||(hasV(d.client.trade)&&hasV(d.client.city)?query(d):''),'search query')+'</em> — this is the search that turns into a phone call.',
+    serp+ins+'<div class="statrow">'+stat('97%','search online before they call a local business')+stat('88%','of local searches lead to a call or visit within 24 hours')+stat('Top&nbsp;3','capture the vast majority of the clicks')+'</div>');
+}
+function r_footprint(d){
+  var f=fp(d),score=numOf(f.profileScore),q=f.rankingQuery||(hasV(d.client.trade)&&hasV(d.client.city)?query(d):''),notes=f.profileNotes||[];
+  var lead=hasV(f.summary)?esc(f.summary):tokG('footprint summary');
+  var ring=score!=null?'<div class="fp-ring"><svg viewBox="0 0 120 120">'+
+      '<circle cx="60" cy="60" r="52" fill="none" stroke="rgba(255,255,255,.12)" stroke-width="9"/>'+
+      '<circle cx="60" cy="60" r="52" fill="none" stroke="#FF5733" stroke-width="9" stroke-linecap="round" stroke-dasharray="326.7" stroke-dashoffset="'+(326.7*(1-Math.max(0,Math.min(100,score))/100)).toFixed(1)+'" transform="rotate(-90 60 60)"/></svg>'+
+      '<div class="fp-ring-num" data-countup="'+score+'" data-prefix="">0</div></div><div class="fp-ring-l">Google Profile Score</div>':'';
+  var badge=hasV(f.rankingStatus)?'<div class="fp-badge"><span class="k">Local ranking</span><b>'+esc(f.rankingStatus)+'</b>'+(f.competitorCount?'<span class="sub">'+esc(f.competitorCount)+' competitors in the local pack</span>':'')+'</div>':'';
+  var right=notes.length?'<div class="fp-notes-h">What we noticed on your profile</div>'+notes.map(function(n){return '<div class="fp-note">'+esc(n)+'</div>';}).join(''):'';
+  return wrap('Your Google footprint','Where '+Biz(d)+' stands on Google today',lead,
+    '<div class="fp-grid"><div class="fp-left">'+ring+badge+'<div class="fp-query">for "'+vG(q,'search query')+'"</div></div><div class="fp-right">'+right+'</div></div>');
+}
+function r_citations(d){
+  var f=fp(d),good=f.citationsPresent||[],miss=f.citationsMissing||[];
+  return wrap('Local visibility','Where you\'re listed — and where you\'re missing',
+    'Every directory you\'re listed in is another place customers and Google can find you. Here\'s your map.',
+    '<div class="twocol cit">'+
+    '<div class="cit-col good"><div class="cit-h"><span>Looking good</span><span class="cit-n">'+good.length+'</span></div>'+(good.map(function(x){return '<div class="cit-li"><span class="cit-ic ok">✓</span>'+esc(x)+'</div>';}).join('')||'<div class="cit-li">—</div>')+'</div>'+
+    '<div class="cit-col miss"><div class="cit-h"><span>Missing</span><span class="cit-n">'+miss.length+'</span></div>'+(miss.map(function(x){return '<div class="cit-li"><span class="cit-ic no">+</span>'+esc(x)+'</div>';}).join('')||'<div class="cit-li">—</div>')+'</div>'+
+    '</div>'+callout('ember','Each missing listing is a spot where a competitor shows up and you don\'t. Building these out is part of your monthly SEO.'));
+}
+function r_ways(d){
+  var ways=fp(d).waysToRank||[];
+  return wrap('The roadmap','5 ways to rank higher',
+    'These are the moves that climb the local rankings for '+tradeIndustry(d)+' in '+City(d)+'.',
+    '<div class="flow">'+ways.map(function(w,i){return flowLine(String(i+1),w);}).join('')+'</div>');
+}
+function r_diy(d){
+  var tips=fp(d).diyTips||[];
+  return wrap('Yours to keep','5 things you can do yourself this week',
+    'No strings attached. Whether we work together or not, here\'s where to start.',
+    '<div class="flow">'+tips.map(function(t,i){return flowLine(String(i+1),t,'g');}).join('')+'</div>'+
+    callout('green','This is yours to act on today. The catch? Doing it consistently, every month, is a job in itself — that\'s the part we take off your plate.'));
+}
+function r_cost(d){
+  var aj=statedAvgJob(d),leads=numOf(webLeadsDisplay(d)),leadsTok=webLeadsToken(d);
+  var ajShow=aj!=null?money(aj):tokD('average_job');
+  var monthly=aj!=null&&leads!=null?Math.round(leads*aj):null;
+  var annual=monthly!=null?monthly*12:null;
+  var occ=tradeOccPlural(d);
+  var pain=hasV(d.enrichment.painPoint)?callout('ember',esc(d.enrichment.painPoint)):callout('ember',tokG('pain point — tie their challenge to being invisible'));
+  var costBig=monthly!=null?'<div class="cost-big" data-countup="'+monthly+'">$0</div>':'<div class="cost-big">'+tokD('monthly_opportunity')+'</div>';
+  var costSub='Industry average for <strong>'+tradeIndustry(d)+'</strong>: about <strong>'+leadsTok+' new '+occ+'</strong> find a business like yours through a well-built, findable website each month. At your <strong>'+ajShow+'</strong> average job, that\'s the opportunity on the table.';
+  var annualLine=annual!=null?'<div class="cost-annual">≈ '+esc(money(annual))+' a year</div>':'<div class="cost-annual">'+tokD('annual_opportunity')+'</div>';
+  return wrap('The real cost','The real cost of being hard to find',
+    'This isn\'t about a website. It\'s about the customers who never find you — and the jobs that quietly go to whoever showed up first.',
+    '<div class="cost-hero">'+costBig+
+    '<div class="cost-big-l">in new work could come through your website — every month</div>'+
+    '<div class="cost-sub">'+costSub+'</div>'+annualLine+'</div>'+pain+
+    '<div class="s-caption">Web-lead count uses the average for <em>'+tradeIndustry(d)+'</em> (set by Gemini or the industry table). Ticket size uses what the client told us.</div>');
+}
+function r_found(d){
+  return wrap('The difference','A website and getting <em>found</em> are two different things',
+    'A site nobody finds is a brochure locked in a drawer. The jobs come from showing up the moment someone searches.',
+    '<div class="twocol"><div class="cmp bad"><div class="h">Just having a website</div><p>Looks professional. Sits online. But if Google doesn\'t rank it for what people search in '+City(d)+', customers never see it.</p></div>'+
+    '<div class="cmp good"><div class="h">Website + SEO together</div><p>Built to rank, updated every month. It shows up when someone searches for '+tradeIndustry(d)+' — and turns that search into a call.</p></div></div>'+
+    callout('green','<strong>The Yellow Pages, but for today:</strong> Google is the phone book now — and the businesses listed at the top get the calls. SEO is how you get listed there. Unlike ads, once you\'re ranked those leads don\'t cost you per click.'));
+}
+function r_rentown(d){
+  return wrap('Two ways to show up','Rent your spot, or own it',
+    'It\'s fair to ask — why not just pay Google for ads? Here\'s the honest difference.',
+    '<div class="twocol"><div class="cmp bad"><div class="h">Paid ads — renting</div><p>You\'re at the top today. The second your budget runs out, you vanish — like you were never there. You pay for every click, forever.</p></div>'+
+    '<div class="cmp good"><div class="h">SEO — owning</div><p>Like planting a tree. Takes a little time to grow, but once it does it stands on its own. Once you rank, the leads keep coming without paying per click.</p></div></div>'+
+    callout('blue','Ads have their place. But for a '+tradeOccSingular(d)+' who wants steady, compounding calls, owning your spot beats renting it month after month.'));
+}
+function r_build(d){
+  return wrap('How we build','A site built to turn visitors into calls',
+    'Your website is built on a proven structure we\'ve refined for home service businesses — then customized with your services, your city, and your brand, and tuned to do one thing: get the phone ringing.',
+    '<div class="flow">'+
+    flowItem('·','Built to convert','Laid out the way home service customers actually decide — clear services, service area, reviews, and an easy way to call.')+
+    flowItem('·','Proven for trades','A structure we\'ve optimized specifically for home services, then tailored to '+Biz(d)+' — not a generic builder you fight with.')+
+    flowItem('·','SEO architecture','Headings, schema, and page structure designed to rank — built in from the start, not bolted on later.')+
+    flowItem('·','Fully managed','You never touch the technical side. We run and update it every month so you don\'t have to.')+'</div>');
+}
+function r_engine(d){
+  return wrap('The engine','What we run every month so you don\'t have to',
+    'This is the work that actually gets you found. Most owners never want to touch it — and never should have to.',
+    '<div class="cardgrid">'+
+    gcardBody('Keywords &amp; content','Ongoing optimization + fresh SEO blogs for the searches that drive jobs in '+City(d)+'.')+
+    gcardBody('Technical SEO','Schema, indexing, page speed, on-page structure — the plumbing Google reads.')+
+    gcardBody('Google Business Profile','Reviews, hours, service area — kept consistent with your site for the map pack.')+
+    gcardBody('Ranking reports','Every month you see exactly where you stand on your target keywords.')+
+    gcardBody('Domain &amp; hosting','Managed end to end. No dashboards to learn, nothing to maintain.')+
+    gcardBody('Updates &amp; changes','Need an edit or a new service page? You ask, we handle it.')+'</div>');
+}
+function r_local(d){
+  return wrap('Local visibility','The map pack is where local jobs are won',
+    'That little map with three businesses at the top of Google? That\'s the most valuable real estate in local search — and it\'s won with your Google Business Profile and site working as one.',
+    '<div class="mappack"><div class="map-vis"><div class="map-pin them" style="top:30%;left:24%"></div><div class="map-pin them" style="top:58%;left:62%"></div><div class="map-pin you" style="top:44%;left:46%"></div></div>'+
+    '<div class="map-list"><div class="map-li hl"><div class="mk">A</div><div class="tx">'+Biz(d)+'</div></div><div class="map-li"><div class="mk">2</div><div class="tx">A competitor that optimized first</div></div><div class="map-li"><div class="mk">3</div><div class="tx">Another shop in '+City(d)+'</div></div></div></div>'+
+    callout('green','Most competitors treat the map listing and the website as two separate problems. We architect them as one connected system — so you show up in the map <em>and</em> the regular results.'));
+}
+function r_proof(d){
+  /* STATIC — always the 3 sample leads (not modular, not data-driven). */
+  var body='<div class="leadgrid">'+SAMPLE_LEADS.map(function(l){
+      return '<div class="lead-card"><div class="lead-head"><span class="flame">🔥</span><span class="tt">New Lead</span><span class="badge">'+esc(l.type)+'</span></div>'+
+        '<div class="lead-body"><div class="lead-name">'+esc(l.name)+'</div><div class="lead-id">ID '+esc(l.id)+'</div><div class="lead-details">'+esc(l.details)+'</div></div>'+
+        '<div class="lead-foot"><span class="dot"></span>Inbound · via website</div></div>';
+    }).join('')+'</div>';
+  return wrap('Real results','What it looks like when it\'s working',
+    'No ads. No cold calling. People search, they find the site, and they reach out — just like these.',
+    body+'<div class="s-caption">Real inbound leads from sites we\'ve built (names shortened for privacy).</div>');
+}
+function r_why(d){
+  var pl=plan(d),bv=pl?money(pl.build):tokD('build_value');
+  return wrap('Why Ahana','Why owners like you pick us',null,
+    '<div class="cardgrid">'+
+    gcardBody('No upfront build fee','A professional website worth '+bv+', built before you spend a dollar. You see it first.')+
+    gcardBody('Trades specialists','Home services only — we know your customers and the way they search.')+
+    gcardBody('Month to month','No long contracts. We earn your business every single month.')+
+    gcardBody('You own it','After 12 months the site is yours outright — a real business asset.')+
+    gcardBody('One system','Website + SEO managed together, not a site dump and a separate SEO bill.')+
+    gcardBody('Nothing technical','We handle the internet stuff so you can keep doing what you\'re good at.')+'</div>');
+}
+function r_plan(d){
+  var pl=plan(d),ajC=avgJobCalc(d),exC=extraJobsCalc(d);
+  var ajShow=avgJobDisplay(d),exShow=extraJobsToken(d);
+  var rationale=hasV(d.enrichment.planRationale)?esc(d.enrichment.planRationale):(pl?esc(defRationale(d)):tokG('plan rationale'));
+  var price=pl?pl.price:549,pn=pl?pl.name:'Enhanced';
+  return wrap('Your plan','Our recommendation: <em>'+planName(d)+'</em>',rationale,
+    '<div class="roi" data-roi data-price="'+price+'" data-planname="'+esc(pn)+'">'+
+    '<div class="roi-grid"><div class="roi-controls">'+
+    '<div class="ctl"><div class="top"><label>Average job value</label><span class="out" data-out="jobval">'+ajShow+'</span></div><input type="range" class="roi-range" data-range="jobval" min="150" max="20000" step="50" value="'+ajC+'"></div>'+
+    '<div class="ctl"><div class="top"><label>Extra jobs a month</label><span class="out" data-out="jobs">'+exShow+'</span></div><input type="range" class="roi-range" data-range="jobs" min="1" max="20" step="1" value="'+exC+'"></div>'+
+    '<div class="roi-verdict" data-verdict></div></div>'+
+    '<div class="roi-out"><div class="big" data-out="net">$0</div><div class="big-l">Extra revenue a month</div>'+
+    '<div class="line"><span>New revenue</span><b data-out="rev">$0</b></div>'+
+    '<div class="line"><span>'+esc(pn)+' plan</span><b>−'+esc(money(price))+'</b></div>'+
+    '<div class="line"><span>A year of upside</span><b data-out="year">$0</b></div></div></div></div>'+
+    callout('ember',hasV(d.enrichment.roiNarrative)?esc(d.enrichment.roiNarrative):(pl?esc(defRoi(d)):tokG('ROI narrative'))));
+}
+function defRationale(d){var pl=plan(d);if(!pl)return '';return 'Based on your market and services, '+pl.name+' is the right fit — enough page depth and monthly SEO to compete in '+cityPlain(d)+' without paying for more than you need.';}
+function defRoi(d){var pl=plan(d);if(!pl)return '';var ex=extraJobsCalc(d);return 'At a '+money(avgJobCalc(d))+' average job, just '+ex+' extra '+(ex===1?'job':'jobs')+' a month covers the entire '+pl.name+' plan — everything after that is work you weren\'t getting before.';}
+function r_plans(d){
+  var pl=plan(d),rec=pl?pl.id:null;
+  var cards=['starter','enhanced','premium'].map(function(id){
+    var p=PLANS[id],isRec=rec&&id===rec;
+    return '<div class="plan'+(isRec?' rec':'')+'">'+(isRec?'<div class="plan-badge">Recommended for you</div>':'')+
+      '<div class="plan-tier">'+esc(p.name)+'</div><div class="plan-price">'+esc(money(p.price))+'<span>/mo</span></div>'+
+      '<div class="plan-build">Free website · '+esc(money(p.build))+' build value</div>'+
+      '<ul class="plan-feats">'+p.feats.map(function(f){return '<li>'+f+'</li>';}).join('')+'</ul></div>';
+  }).join('');
+  var lead=pl?'We\'re recommending <strong>'+esc(pl.name)+'</strong> based on your business. Here\'s how the tiers stack up — every one includes the free build.':
+    'Here\'s how the three tiers stack up — every one includes the free build. '+tokD('recommended_plan')+' will highlight once sizing data is in.';
+  return wrap('Plans','Three sizes — here\'s the one we\'d pick for you',lead,'<div class="plangrid">'+cards+'</div>');
+}
+function r_bridge(d){
+  var link=hasV(d.assets.websiteUrl)?'<a class="bridge-link" href="'+esc(d.assets.websiteUrl)+'" target="_blank" rel="noopener">Open '+bizPlain(d)+'\'s site →</a>':'<p class="cover-meta" style="margin-top:18px;font-family:var(--mono);font-size:11px;letter-spacing:.14em;text-transform:uppercase;color:rgba(255,255,255,.4)">'+tokD('website_url')+'</p>';
+  return '<div class="inner"><div class="s-eyebrow" style="justify-content:center">Now for the good part</div>'+
+    '<h2 class="s-title">Let me show you what we built for '+Biz(d)+'</h2>'+
+    '<p class="s-lead" style="margin:0 auto">We\'ve talked about how customers find you and what it takes to be the one they call. Now let me actually <em>show</em> you — with your name on it.</p>'+
+    '<div class="bridge-arrow">↓</div>'+link+'</div>';
+}
+
+/* builders */
+function wrap(eyebrow,title,lead,body){return '<div class="inner"><div class="s-eyebrow">'+eyebrow+'</div><h2 class="s-title">'+title+'</h2>'+(lead?'<p class="s-lead">'+lead+'</p>':'')+(body||'')+'</div>';}
+function flowItem(n,t,b){return '<div class="flowitem"><div class="flownum">'+n+'</div><div class="flowbody"><b>'+t+'</b><span>'+b+'</span></div></div>';}
+function flowLine(n,text,kind){return '<div class="flowitem"><div class="flownum'+(kind?' '+kind:'')+'">'+n+'</div><div class="flowbody"><span class="ln">'+esc(text)+'</span></div></div>';}
+function callout(kind,html){return '<div class="callout '+kind+'">'+html+'</div>';}
+function gcardH(lbl,html){return '<div class="gcard"><div class="lbl">'+lbl+'</div><div class="val">'+html+'</div></div>';}
+function gcardBody(t,b){return '<div class="gcard"><div class="lbl">'+t+'</div><div class="val sm">'+b+'</div></div>';}
+function stat(n,l){return '<div class="stat"><div class="n">'+n+'</div><div class="l">'+l+'</div></div>';}
+
+var ORDER=[
+  ['cover','dark',r_cover],['agenda','light',r_agenda],['recap','light',r_recap],
+  ['audit','dark',r_audit],
+  ['footprint','dark',r_footprint,hasFootprint],['citations','light',r_citations,hasCitations],
+  ['ways','dark',r_ways,hasWays],['diy','light',r_diy,hasDiy],
+  ['cost','dark',r_cost],['found','light',r_found],['rentown','light',r_rentown],
+  ['build','light',r_build],['engine','dark',r_engine],['local','light',r_local],
+  ['proof','dark',r_proof],['why','light',r_why],['plan','dark',r_plan],
+  ['plans','light',r_plans],['bridge','dark',r_bridge]
+];
+
+/* =====================================================================
+   DECK CONTROLLER
+   ===================================================================== */
+var state={data:emptyData(),slides:[],cur:0};
+function buildDeck(){
+  var d=state.data;
+  state.slides=ORDER.filter(function(m){return !m[3]||m[3](d);}).map(function(m){return {id:m[0],theme:m[1],html:m[2](d)};});
+  document.getElementById('deck').innerHTML=state.slides.map(function(s,i){
+    var cls='slide '+s.theme+(s.id==='cover'?' cover':'')+(s.id==='bridge'?' bridge':'')+(i===state.cur?' active':'');
+    return '<section class="'+cls+'" data-id="'+s.id+'">'+s.html+'</section>';
+  }).join('');
+  if(state.cur>=state.slides.length)state.cur=0;
+  updateChrome();initInteractions();document.title=bizPlain(d)+' — Digital Success Consultation';
+}
+function goTo(i){if(i<0||i>=state.slides.length)return;state.cur=i;document.querySelectorAll('.slide').forEach(function(el,idx){el.classList.toggle('active',idx===i);if(idx===i)el.scrollTop=0;});updateChrome();initInteractions();}
+function next(){goTo(state.cur+1);}function prev(){goTo(state.cur-1);}
+function jumpReveal(){var i=state.slides.findIndex(function(s){return s.id==='bridge';});if(i>=0)goTo(i);}
+function updateChrome(){
+  var total=state.slides.length,cur=state.cur+1;
+  document.getElementById('counter').textContent=cur+' / '+total;
+  document.getElementById('progress').style.width=(cur/total*100)+'%';
+  var dots=document.getElementById('dots');
+  dots.innerHTML=state.slides.map(function(s,i){return '<button class="dot'+(i===state.cur?' active':'')+'" data-i="'+i+'" title="'+esc(s.id)+'"></button>';}).join('');
+  dots.querySelectorAll('.dot').forEach(function(b){b.addEventListener('click',function(){goTo(+b.dataset.i);});});
+}
+function initInteractions(){
+  var active=document.querySelectorAll('.slide')[state.cur];if(!active)return;
+  active.querySelectorAll('[data-countup]').forEach(function(el){if(!el.dataset.done){countUp(el,+el.dataset.countup);el.dataset.done='1';}});
+  var roi=active.querySelector('[data-roi]');if(roi&&!roi.dataset.wired){wireROI(roi);roi.dataset.wired='1';}
+}
+function countUp(el,target){
+  var pre=el.dataset.prefix!=null?el.dataset.prefix:'$',start=performance.now(),dur=1100;
+  function tick(now){var p=Math.min((now-start)/dur,1),e=1-Math.pow(1-p,3);el.textContent=pre+Math.round(target*e).toLocaleString('en-US');if(p<1)requestAnimationFrame(tick);}
+  requestAnimationFrame(tick);
+}
+function wireROI(root){
+  var jvR=root.querySelector('[data-range="jobval"]'),jbR=root.querySelector('[data-range="jobs"]'),price=+root.dataset.price,pn=root.dataset.planname;
+  function f(n){return '$'+Math.round(n).toLocaleString('en-US');}
+  function upd(){
+    var jv=+jvR.value,jb=+jbR.value,rev=jv*jb,net=rev-price,year=net*12;
+    root.querySelector('[data-out="jobval"]').textContent=f(jv);
+    root.querySelector('[data-out="jobs"]').textContent=jb;
+    root.querySelector('[data-out="rev"]').textContent=f(rev);
+    root.querySelector('[data-out="net"]').textContent=net<0?'-$'+Math.abs(Math.round(net)).toLocaleString('en-US'):f(net);
+    root.querySelector('[data-out="year"]').textContent=f(Math.max(year,0));
+    var v=root.querySelector('[data-verdict]'),need=Math.max(1,Math.ceil(price/Math.max(jv,1)));
+    if(rev>=price)v.innerHTML='Just <b style="color:#fff">'+jb+' extra job'+(jb===1?'':'s')+'</b> a month makes '+esc(pn)+' pay for itself'+(rev>=price*2?' several times over':' and then some')+'.';
+    else v.innerHTML='About <b style="color:#fff">'+need+' extra job'+(need===1?'':'s')+'</b> a month covers '+esc(pn)+' — well within reach once you\'re findable.';
+  }
+  jvR.addEventListener('input',upd);jbR.addEventListener('input',upd);upd();
+}
+
+/* =====================================================================
+   CONTROL PANEL
+   ===================================================================== */
+var FIELDS=[
+  {group:'Client',desc:'Hard data from the CRM. Blanks are highlighted red — they must be filled before you present.',items:[
+    {f:'client.businessName',label:'Business name',req:true},
+    {f:'client.ownerFirstName',label:'Client name',req:true},
+    {f:'client.trade',label:'Industry slug (plumbing, roofing…)',req:true},
+    {f:'client.city',label:'Market city',req:true}
+  ]},
+  {group:'Numbers',desc:'Ask the client before you present. Blank fields show as {{placeholders}} on slides 3, 5, and 11 — not silent industry averages.',items:[
+    {f:'discovery.avgJobValue',label:'Average job size',kind:'num',req:true,ph:'ask the client'},
+    {f:'discovery.jobsPerMonth',label:'Volume — jobs / month',kind:'num',req:true,ph:'ask the client'},
+    {f:'enrichment.extraJobsPerMonth',label:'Additional jobs wanted / month (ROI)',kind:'num',ph:'industry avg or client goal'},
+    {f:'discovery.serviceAreas',label:'Service areas (cities served)',kind:'num',ph:'e.g. Toronto, Mississauga'},
+    {f:'discovery.crews',label:'Crews / techs',kind:'num',ph:'e.g. 2'},
+    {f:'discovery.annualRevenue',label:'Annual revenue',kind:'num',ph:'e.g. $400,000'}
+  ]},
+  {group:'Search & plan — Gemini',desc:'Filled by Gemini Prompt A after a real Google search. {{Gemini input}} on slide 4 until enriched.',items:[
+    {f:'enrichment.searchQuery',label:'Search query',kind:'gem'},
+    {f:'enrichment.industryLeadsPerMonth',label:'Web leads / month (this industry)',kind:'gem'},
+    {f:'enrichment.recommendedPlan',label:'Recommended plan',kind:'plan'},
+    {f:'enrichment.competitors',label:'Competitors (JSON array)',kind:'gemjson',area:true},
+    {f:'enrichment.auditSummary',label:'Audit summary',kind:'gem',area:true},
+    {f:'enrichment.localInsight',label:'Local insight',kind:'gem',area:true},
+    {f:'enrichment.painPoint',label:'Pain point',kind:'gem',area:true},
+    {f:'enrichment.planRationale',label:'Plan rationale (auto if blank)',kind:'gemopt',area:true},
+    {f:'enrichment.roiNarrative',label:'ROI narrative (auto if blank)',kind:'gemopt',area:true}
+  ]},
+  {group:'Google footprint — Gemini',desc:'Filled by Gemini Prompt B. If the whole block is blank, the 4 footprint slides simply don\'t show.',items:[
+    {f:'footprint.profileScore',label:'Profile score (0-100)',kind:'gem'},
+    {f:'footprint.rankingStatus',label:'Ranking status',kind:'gem'},
+    {f:'footprint.competitorCount',label:'Competitors in local pack',kind:'gem'},
+    {f:'footprint.summary',label:'Footprint summary',kind:'gem',area:true},
+    {f:'footprint.profileNotes',label:'Profile notes (one per line)',kind:'gemlines',area:true},
+    {f:'footprint.citationsPresent',label:'Citations present (one per line)',kind:'gemlines',area:true},
+    {f:'footprint.citationsMissing',label:'Citations missing (one per line)',kind:'gemlines',area:true},
+    {f:'footprint.waysToRank',label:'5 ways to rank (one per line)',kind:'gemlines',area:true},
+    {f:'footprint.diyTips',label:'5 DIY tips (one per line)',kind:'gemlines',area:true}
+  ]},
+  {group:'Assets',desc:'The Real Results slide is fixed (3 sample leads) — nothing to fill here.',items:[
+    {f:'assets.websiteUrl',label:'Website to reveal',req:true}
+  ]}
+];
+function allItems(){var a=[];FIELDS.forEach(function(g){g.items.forEach(function(it){a.push(it);});});return a;}
+function fieldEmpty(it){
+  var v=getPath(state.data,it.f);
+  if(Array.isArray(v))return v.length===0;
+  return !hasV(v);
+}
+function placeholderFor(it){
+  if(it.kind==='gem'||it.kind==='gemjson'||it.kind==='gemlines'||it.kind==='gemopt')return '{{Gemini input}}';
+  if(it.kind==='num')return it.ph||'industry avg';
+  if(it.kind==='lines'||it.kind==='plan')return it.ph||'';
+  return '{{'+it.f.split('.').pop().replace(/([A-Z])/g,'_$1').toLowerCase()+'}}';
+}
+function stateClass(it){
+  if(!fieldEmpty(it))return 'ok';
+  if(it.req)return 'miss';
+  if(it.kind==='num')return 'num';
+  if(it.kind==='gem'||it.kind==='gemjson'||it.kind==='gemlines'||it.kind==='gemopt')return 'gem';
+  return '';
+}
+function renderControl(){
+  var form=document.getElementById('ctlForm');
+  form.innerHTML=FIELDS.map(function(g){
+    return '<div class="ctl-sec"><h2>'+esc(g.group)+'</h2>'+(g.desc?'<div class="sdesc">'+esc(g.desc)+'</div>':'')+
+      '<div class="ctl-grid">'+g.items.map(function(it){
+        var tag=it.req?'<span class="tag req">required</span>':(it.kind==='num'?'<span class="tag num">avg ok</span>':((/gem/.test(it.kind||''))?'<span class="tag gem">Gemini</span>':''));
+        var input;
+        if(it.kind==='plan'){
+          input='<select data-cf="'+it.f+'"><option value="">Auto — '+esc(autoPlan(state.data))+'</option><option value="starter">Starter</option><option value="enhanced">Enhanced</option><option value="premium">Premium</option></select>';
+        }else if(it.area){
+          input='<textarea data-cf="'+it.f+'" data-kind="'+(it.kind||'')+'" placeholder="'+esc(placeholderFor(it))+'"></textarea>';
+        }else{
+          input='<input data-cf="'+it.f+'" data-kind="'+(it.kind||'')+'" placeholder="'+esc(placeholderFor(it))+'">';
+        }
+        return '<div class="cf'+(it.area?' wide':'')+'" data-for="'+it.f+'"><label>'+esc(it.label)+tag+'</label>'+input+'</div>';
+      }).join('')+'</div></div>';
+  }).join('');
+  controlPopulate();
+  refreshStates();
+  form.addEventListener('input',onControlInput);
+}
+function controlPopulate(){
+  document.querySelectorAll('#ctlForm [data-cf]').forEach(function(el){
+    var it=byPath(el.getAttribute('data-cf'));var v=getPath(state.data,el.getAttribute('data-cf'));
+    if(Array.isArray(v)){
+      if(it&&it.kind==='gemjson')el.value=v.length?JSON.stringify(v,null,0):'';
+      else el.value=v.join('\n');
+    }else if(hasV(v))el.value=v;else el.value='';
+  });
+}
+function byPath(p){var found=null;allItems().forEach(function(it){if(it.f===p)found=it;});return found;}
+function onControlInput(e){
+  var el=e.target,p=el.getAttribute('data-cf');if(!p)return;
+  var it=byPath(p),kind=it&&it.kind;
+  var raw=el.value;
+  if(it&&(kind==='gemlines'||kind==='lines')){setPath(state.data,p,raw.split('\n').map(function(x){return x.trim();}).filter(Boolean));}
+  else if(it&&kind==='gemjson'){try{setPath(state.data,p,raw.trim()?JSON.parse(raw):[]);}catch(_){/*keep typing*/}}
+  else setPath(state.data,p,raw);
+  refreshStates();
+}
+function refreshStates(){
+  document.querySelectorAll('#ctlForm .cf[data-for]').forEach(function(cf){
+    var it=byPath(cf.getAttribute('data-for'));if(!it)return;
+    cf.classList.remove('miss','gem','num','ok');
+    var c=stateClass(it);if(c)cf.classList.add(c);
+  });
+  // completeness (required only)
+  var req=allItems().filter(function(it){return it.req;});
+  var filled=req.filter(function(it){return !fieldEmpty(it);}).length;
+  document.getElementById('compNum').textContent=filled+'/'+req.length;
+  var missN=req.length-filled;
+  document.getElementById('compTxt').innerHTML=missN===0?'<span class="ok">All required fields in.</span> Ready to present.':'<span class="miss">'+missN+' required field'+(missN===1?'':'s')+' still blank</span> (highlighted red below).';
+  // plan recommendation
+  var picked=state.data.enrichment.recommendedPlan;
+  var rec=picked||autoPlan(state.data);
+  document.getElementById('planPill').textContent=PLANS[rec]?PLANS[rec].name:'Enhanced';
+  document.getElementById('planWhy').textContent=picked?'Set in CRM/Gemini — '+planReason(state.data):planReason(state.data);
+  document.getElementById('planSrc').textContent=picked?'· from data':'· auto';
+}
+
+/* ---------- Supabase ---------- */
+function sbConfigured(){return SUPABASE.url&&SUPABASE.anonKey;}
+function sbHeaders(){return {apikey:SUPABASE.anonKey,Authorization:'Bearer '+SUPABASE.anonKey};}
+function loadAppointments(){
+  var bar=document.getElementById('sbBar'),sel=document.getElementById('apptSelect'),status=document.getElementById('sbStatus');
+  if(!sbConfigured()){bar.className='sb-bar off';status.textContent='Supabase not configured — manual entry';return;}
+  status.textContent='Loading appointments…';
+  var url=SUPABASE.url.replace(/\/$/,'')+'/rest/v1/'+SUPABASE.table+'?select='+encodeURIComponent(SUPABASE.select)+(SUPABASE.filter?'&'+SUPABASE.filter:'');
+  fetch(url,{headers:sbHeaders()})
+    .then(function(r){if(!r.ok)throw new Error('HTTP '+r.status);return r.json();})
+    .then(function(rows){
+      window.__APPTS=rows||[];
+      sel.innerHTML='<option value="">— Select a booked appointment —</option>'+rows.map(function(row,i){
+        var lbl=row[SUPABASE.labelColumn]||row.business_name||('Appointment '+(i+1));
+        var when=row.appointment_at?(' · '+new Date(row.appointment_at).toLocaleDateString()):'';
+        return '<option value="'+i+'">'+esc(lbl+when)+'</option>';
+      }).join('');
+      bar.className='sb-bar ok';status.textContent=rows.length+' appointment'+(rows.length===1?'':'s')+' loaded';
+    })
+    .catch(function(err){bar.className='sb-bar off';status.textContent='Supabase error: '+err.message+' (check config/RLS)';});
+}
+function selectAppointment(i){
+  var row=(window.__APPTS||[])[i];if(!row)return;
+  state.data=mergeDeep(emptyData(),adaptCrmPayload(row));
+  renderControlValues();
+}
+function renderControlValues(){controlPopulate();refreshStates();}
+
+/* ---------- links ---------- */
+function toPayload(){return JSON.parse(JSON.stringify(state.data));}
+function presentLink(){var u=new URL(location.href);u.search='?present=1&d='+b64uEnc(JSON.stringify(toPayload()));u.hash='';return u.toString();}
+
+/* =====================================================================
+   FORMS (adjust panel) + mode switching
+   ===================================================================== */
+function applyForm(form){form.querySelectorAll('[data-f]').forEach(function(el){setPath(state.data,el.getAttribute('data-f'),el.value);});}
+function fillForm(form){form.querySelectorAll('[data-f]').forEach(function(el){var val=getPath(state.data,el.getAttribute('data-f'));if(val!=null&&val!=='')el.value=val;});}
+
+function showPresent(){
+  document.getElementById('control').hidden=true;
+  document.getElementById('deckWrap').hidden=false;
+  document.getElementById('preflight').hidden=true;
+  document.body.classList.add('presenting');
+  fillForm(document.getElementById('adjustForm'));
+  buildDeck();goTo(0);
+}
+function showControl(){
+  document.getElementById('deckWrap').hidden=true;
+  document.getElementById('control').hidden=false;
+  document.getElementById('preflight').hidden=true;
+  document.body.classList.remove('presenting');
+  controlPopulate();refreshStates();
+}
+var CLIENT_PREFLIGHT=[
+  {f:'client.businessName',label:'Business name'},
+  {f:'client.ownerFirstName',label:'Client first name'},
+  {f:'client.trade',label:'Industry (slug: plumbing, roofing, hvac…)'},
+  {f:'client.city',label:'City'},
+  {f:'discovery.avgJobValue',label:'Average job value — ask the client'},
+  {f:'discovery.jobsPerMonth',label:'Jobs per month — ask the client'},
+  {f:'assets.websiteUrl',label:'Website preview URL'}
+];
+function pathEmpty(path){
+  var v=getPath(state.data,path);
+  if(Array.isArray(v))return !v.length;
+  return !hasV(v);
+}
+function runPreflightChecks(){
+  var missClient=[],missGemini=[];
+  CLIENT_PREFLIGHT.forEach(function(x){if(pathEmpty(x.f))missClient.push(x.label);});
+  if(pathEmpty('enrichment.searchQuery')&&!(hasV(state.data.client.trade)&&hasV(state.data.client.city)))
+    missGemini.push('Search query (Gemini Google search)');
+  if(!competitors(state.data)||!competitors(state.data).length)
+    missGemini.push('Top 3 competitors from Google (slide 4)');
+  if(pathEmpty('enrichment.industryLeadsPerMonth')&&!industryStrict(state.data.client.trade))
+    missGemini.push('Web leads / month for this industry (slide 5)');
+  if(pathEmpty('enrichment.recommendedPlan')&&!(hasV(state.data.client.trade)&&hasV(state.data.client.city)))
+    missGemini.push('Recommended plan (slide 11–13)');
+  return {client:missClient,gemini:missGemini};
+}
+function showPreflightModal(chk,hardBlock){
+  var pf=document.getElementById('preflight'),list=document.getElementById('pfList'),proceed=document.getElementById('pfProceed');
+  list.innerHTML='';
+  chk.client.forEach(function(l){list.innerHTML+='<li class="client">'+esc(l)+'</li>';});
+  chk.gemini.forEach(function(l){list.innerHTML+='<li class="gem">'+esc(l)+'</li>';});
+  document.getElementById('pfLead').textContent=hardBlock?
+    'Collect the red items from the client (or fill them in Setup) before you start the deck.':
+    'Gemini/Make fields are still open — run enrichment before the call when you can. You can present with visible tokens, or go back and fill gaps.';
+  proceed.hidden=hardBlock;
+  pf.hidden=false;
+}
+function tryShowPresent(){
+  var chk=runPreflightChecks();
+  if(chk.client.length){showPreflightModal(chk,true);return;}
+  if(chk.gemini.length){showPreflightModal(chk,false);return;}
+  showPresent();
+}
+
+function copy(text,msg){
+  function done(){var c=document.getElementById('copied');c.textContent=msg;setTimeout(function(){c.textContent='';},2600);}
+  if(navigator.clipboard)navigator.clipboard.writeText(text).then(done).catch(function(){prompt('Copy:',text);});
+  else prompt('Copy:',text);
+}
+
+/* =====================================================================
+   BOOT
+   ===================================================================== */
+function boot(){
+  state.data=emptyData();
+  var inj=getInjected();if(inj)mergeDeep(state.data,inj);
+  mergeDeep(state.data,parseParams());
+
+  // deck chrome
+  document.getElementById('btnPrev').addEventListener('click',prev);
+  document.getElementById('btnNext').addEventListener('click',next);
+  document.getElementById('btnReveal').addEventListener('click',jumpReveal);
+  document.getElementById('btnSetup').addEventListener('click',showControl);
+  document.getElementById('btnFull').addEventListener('click',function(){if(!document.fullscreenElement)document.documentElement.requestFullscreen();else document.exitFullscreen();});
+  var apanel=document.getElementById('adjustPanel');
+  function toggleAdjust(){apanel.classList.toggle('open');document.getElementById('btnAdjust').classList.toggle('on',apanel.classList.contains('open'));}
+  document.getElementById('btnAdjust').addEventListener('click',toggleAdjust);
+  document.getElementById('closeAdjust').addEventListener('click',toggleAdjust);
+  document.getElementById('btnApplyAdjust').addEventListener('click',function(){applyForm(document.getElementById('adjustForm'));buildDeck();apanel.classList.remove('open');document.getElementById('btnAdjust').classList.remove('on');});
+  document.addEventListener('keydown',function(e){
+    if(document.getElementById('deckWrap').hidden)return;
+    if(/^(INPUT|TEXTAREA|SELECT)$/.test(e.target.tagName))return;
+    if(e.key==='ArrowRight'||e.key===' '){e.preventDefault();next();}
+    else if(e.key==='ArrowLeft'){e.preventDefault();prev();}
+    else if(e.key==='a'||e.key==='A')toggleAdjust();
+    else if(e.key==='e'||e.key==='E')showControl();
+    else if(e.key==='r'||e.key==='R')jumpReveal();
+    else if(e.key==='f'||e.key==='F')document.getElementById('btnFull').click();
+    else if(e.key==='h'||e.key==='H')document.getElementById('chrome').classList.toggle('hidden');
+    else if(e.key==='Escape'){apanel.classList.remove('open');document.getElementById('btnAdjust').classList.remove('on');}
+  });
+
+  // control wiring
+  renderControl();
+  loadAppointments();
+  document.getElementById('apptSelect').addEventListener('change',function(){if(this.value!=='')selectAppointment(+this.value);});
+  document.getElementById('sbRefresh').addEventListener('click',loadAppointments);
+  document.getElementById('btnRun').addEventListener('click',tryShowPresent);
+  document.getElementById('pfBack').addEventListener('click',function(){document.getElementById('preflight').hidden=true;});
+  document.getElementById('pfProceed').addEventListener('click',showPresent);
+  document.getElementById('planUse').addEventListener('click',function(){state.data.enrichment.recommendedPlan=autoPlan(state.data);controlPopulate();refreshStates();});
+  document.getElementById('btnCopyPresent').addEventListener('click',function(){copy(presentLink(),'Present link copied.');});
+  document.getElementById('btnCopyInject').addEventListener('click',function(){copy('window.AHANA_DATA = '+JSON.stringify(toPayload(),null,2)+';','Inject JSON copied.');});
+
+  // route: a Make-injected per-client Netlify page (or ?present) opens straight into the deck.
+  // The raw template, or ?control / ?edit, opens the rep Control view. "Setup" (E) always returns.
+  var rp=new URLSearchParams(location.search);
+  if(!(rp.has('control')||rp.has('edit')) && (rp.has('present')||inj)){
+    var chk=runPreflightChecks();
+    if(chk.client.length) showControl();
+    else if(chk.gemini.length){showPreflightModal(chk,false);}
+    else showPresent();
+  }
+  else showControl();
+}
+boot();
+})();
+</script>
+</body>
+</html>
