@@ -1,0 +1,29 @@
+{
+  "name": "ahana-client-presentation",
+  "version": "1.0.0",
+  "description": "Digital Success Consultation deck for Ahana reps — customer-facing slides plus rep control surface.",
+  "main": "index.js",
+  "directories": {
+    "doc": "docs"
+  },
+  "scripts": {
+    "build:sample": "node scripts/build-sample.mjs",
+    "build:pdf": "node scripts/build-pdf.mjs",
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/GetAhana/Ahana-Client-Presentation.git"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "type": "commonjs",
+  "bugs": {
+    "url": "https://github.com/GetAhana/Ahana-Client-Presentation/issues"
+  },
+  "homepage": "https://github.com/GetAhana/Ahana-Client-Presentation#readme",
+  "devDependencies": {
+    "puppeteer": "^25.2.1"
+  }
+}

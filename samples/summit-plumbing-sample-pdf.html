@@ -1,9 +1,9 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="en" class="pdf-mode">
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Digital Success Consultation — Ahana</title>
+<title>Summit Plumbing Co. — Consultation Deck (PDF)</title>
 <meta name="robots" content="noindex,nofollow">
 <!--
   AHANA — DIGITAL SUCCESS CONSULTATION (control surface + customer deck)
@@ -399,6 +399,21 @@ em{font-style:italic}
 .pf-list li.gem{background:var(--amber-l);color:#7A5800;border:1px solid var(--amber-b)}
 .pf-actions{display:flex;gap:10px;flex-wrap:wrap}
 @media print{.chrome,.panel,.progress,.control,.ctl-actions,.preflight{display:none!important}body{overflow:visible}.slide{position:relative;display:flex!important;page-break-after:always;min-height:100vh}}
+
+/* PDF export — all slides, no rep chrome */
+html.pdf-mode body{overflow:visible;background:#0F0F10}
+html.pdf-mode .control,html.pdf-mode .preflight,html.pdf-mode .chrome,html.pdf-mode .panel,html.pdf-mode .progress{display:none!important}
+html.pdf-mode .deck-wrap{position:static;display:block!important;height:auto;min-height:0}
+html.pdf-mode .deck{position:static;overflow:visible;height:auto}
+html.pdf-mode .slide{position:relative!important;display:flex!important;opacity:1!important;transform:none!important;animation:none!important;min-height:100vh;height:auto;page-break-after:always;break-after:page;padding:48px 64px 64px}
+html.pdf-mode .slide:last-child{page-break-after:auto}
+html.pdf-mode input[type=range]{display:none!important}
+html.pdf-mode .roi-verdict{display:block!important}
+@media print{
+  html.pdf-mode .control,html.pdf-mode .preflight,html.pdf-mode .chrome,html.pdf-mode .panel,html.pdf-mode .progress{display:none!important}
+  html.pdf-mode .slide{display:flex!important;page-break-after:always;break-after:page;-webkit-print-color-adjust:exact;print-color-adjust:exact}
+}
+
 </style>
 </head>
 <body>
@@ -491,7 +506,7 @@ em{font-style:italic}
      Replacer substitutes {{DECK_JSON}} on the line below (same {{TOKEN}} flow
      as {{BUSINESS_NAME}} on client sites). No Cloudflare API in Make. ===== -->
 <script>
-window.AHANA_DATA = {{DECK_JSON}}; /* __AHANA_INJECT__ */
+window.AHANA_DATA = {"meta":{"repName":"Janica","leadId":"summit-demo-001"},"client":{"ownerFirstName":"Mike","businessName":"Summit Plumbing Co.","trade":"plumbing","city":"Austin"},"discovery":{"avgJobValue":"$850","jobsPerMonth":"20","serviceAreas":"Austin, Round Rock, Cedar Park","crews":"2","annualRevenue":"$204,000"},"enrichment":{"searchQuery":"emergency plumber Austin TX","recommendedPlan":"enhanced","competitors":[{"name":"ABC Plumbing & Drain","rating":"4.8","reviews":"212 reviews"},{"name":"Hill Country Rooter","rating":"4.6","reviews":"96 reviews"},{"name":"Austin Rapid Drain Pros","rating":"4.9","reviews":"340 reviews"}],"industryLeadsPerMonth":"12","extraJobsPerMonth":"3","auditSummary":"Three well-reviewed competitors dominate page-one for emergency plumbing in Austin. Summit's GBP is complete but thin on photos and service-area detail.","localInsight":"Austin's booming suburbs are driving after-hours drain calls — competitors with 24/7 messaging win those clicks.","painPoint":"Most of your new work still comes from referrals — the website isn't pulling its weight yet.","planRationale":"Two crews across three cities — Enhanced gives you location pages and enough monthly content to compete without overbuilding.","roiNarrative":"At $850 average job, three extra plumbing jobs a month pays for the plan several times over."},"footprint":{"profileScore":72,"rankingQuery":"plumber Austin TX","rankingStatus":"Outside the top 20 in Google Maps","competitorCount":18,"summary":"Mike runs a solid operation with repeat customers, but Google visibility lags behind competitors who've invested in local SEO and citations.","profileNotes":["GBP has only 8 photos — competitors average 40+","Service areas list Austin but not Round Rock or Cedar Park","No posts in the last 90 days","Q&A section unanswered"],"citationsPresent":["Yelp","BBB","Angi","HomeAdvisor"],"citationsMissing":["Chamber of Commerce","Houzz","Nextdoor Business"],"waysToRank":["Add service-area pages for Round Rock and Cedar Park","Publish monthly plumbing tips targeting Austin emergency keywords","Collect 5 new Google reviews this quarter","Complete GBP Q&A with top 10 customer questions","Build local citations on industry directories"],"diyTips":["Add a prominent click-to-call button above the fold on mobile","List emergency services with clear response-time promise","Show license and insurance badges on every service page","Add customer reviews with schema markup on homepage","Speed up page load — current site loads in 4.2 seconds"]},"assets":{"websiteUrl":"https://summit-plumbing-demo.netlify.app"}}; /* __AHANA_INJECT__ — PDF sample */
 </script>
 
 <script>
@@ -1292,10 +1307,30 @@ function copy(text,msg){
   else prompt('Copy:',text);
 }
 
+
+function finalizeForPdf(){
+  document.getElementById('control').hidden=true;
+  document.getElementById('deckWrap').hidden=false;
+  document.getElementById('preflight').hidden=true;
+  document.body.classList.add('presenting','pdf-export');
+  state.data=emptyData();
+  var inj=getInjected();if(inj)mergeDeep(state.data,inj);
+  buildDeck();
+  document.querySelectorAll('.slide').forEach(function(el){el.classList.add('active');});
+  document.querySelectorAll('[data-countup]').forEach(function(el){
+    var t=+el.dataset.countup,pre=el.dataset.prefix!=null?el.dataset.prefix:'$';
+    el.textContent=pre+Math.round(t).toLocaleString('en-US');
+  });
+  document.querySelectorAll('[data-roi]').forEach(function(roi){
+    if(!roi.dataset.wired){wireROI(roi);roi.dataset.wired='1';}
+  });
+}
+
 /* =====================================================================
    BOOT
    ===================================================================== */
 function boot(){
+  if(document.documentElement.classList.contains('pdf-mode')){finalizeForPdf();return;}
   state.data=emptyData();
   var inj=getInjected();if(inj)mergeDeep(state.data,inj);
   mergeDeep(state.data,parseParams());

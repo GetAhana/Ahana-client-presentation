@@ -6,11 +6,14 @@ with the data baked into the URL.
 
 ## How Make supplies the data (two ways)
 
-1. **Inject + republish (the main flow)** — Make pulls this template from the repo, finds the
-   line tagged `__AHANA_INJECT__`, replaces `null` with the per-client JSON object, and deploys
-   the result to **its own Netlify URL**. (Replace only the tagged line — don't first-match the
-   word `null` elsewhere.) **A page with injected data opens straight into the deck**; the rep can
-   add **`?control`** to that URL to edit it in place, or press **E / Setup** during the deck.
+1. **Inject + republish (the main flow)** — Make pulls this template from the repo, **POSTs to
+   `ahana-replacer`** (same worker as website builder — no Cloudflare API in Make), with:
+   - `template` = raw `index.html`
+   - `tokens` = flat map: `{ "DECK_JSON": "<minified deck JSON string>" }`
+   The replacer substitutes `{{DECK_JSON}}` on the `__AHANA_INJECT__` line (same `{{TOKEN}}`
+   mechanism as `{{BUSINESS_NAME}}` on client sites). Use the HTTP response `result` for the
+   GitHub PUT. **A page with injected data opens straight into the deck**; the rep can add
+   **`?control`** to that URL to edit it in place, or press **E / Setup** during the deck.
 2. **URL** — append the JSON as a base64url param:
    ```
    index.html?d=<base64url(JSON)>
