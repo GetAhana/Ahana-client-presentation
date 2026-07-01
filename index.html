@@ -158,7 +158,7 @@ em{font-style:italic}
 .cover .meta{margin-top:46px;font-family:var(--mono);font-size:11px;letter-spacing:.16em;text-transform:uppercase;color:rgba(255,255,255,.3);line-height:1.9}
 
 /* grids + cards */
-.cardgrid{display:grid;grid-template-columns:repeat(auto-fit,minmax(232px,1fr));gap:14px}
+.cardgrid{display:grid;grid-template-columns:repeat(3,1fr);gap:14px}
 .grid2x2{display:grid;grid-template-columns:1fr 1fr;gap:14px;max-width:760px}
 .gcard{background:var(--white);border:1px solid var(--border-s);border-radius:var(--rl);padding:20px 22px}
 .slide.dark .gcard{background:rgba(255,255,255,.04);border-color:var(--border-light)}
@@ -381,7 +381,7 @@ em{font-style:italic}
 .pbtn{font-family:var(--mono);font-size:11px;font-weight:500;letter-spacing:.1em;text-transform:uppercase;padding:12px 24px;border-radius:999px;border:1px solid var(--ember);background:var(--ember);color:#fff;cursor:pointer;width:100%}
 
 @media(max-width:920px){
-  .statrow,.twocol,.plangrid,.roi-grid,.mappack,.proofgrid,.leadgrid,.grid2x2,.fp-grid,.ctl-grid,.summary-row{grid-template-columns:1fr}
+  .statrow,.twocol,.plangrid,.roi-grid,.mappack,.proofgrid,.leadgrid,.grid2x2,.fp-grid,.ctl-grid,.summary-row,.cardgrid{grid-template-columns:1fr}
   .fp-left{margin-bottom:10px}
   .roi-out{border-left:none;border-top:1px solid var(--border-light);padding-left:0;padding-top:20px;margin-top:6px}
   .slide{padding:34px 24px 96px}.dots{max-width:30vw}
@@ -547,7 +547,7 @@ function adaptCrmPayload(raw){
   d.client.ownerFirstName=firstWord(gv(leadN.contact_name,raw.contact_name));
   d.client.trade=gv(leadN.trade,raw.trade);
   d.client.city=gv(leadN.city,raw.city);
-  d.assets.websiteUrl=gv(leadN.website,raw.website);
+  d.assets.websiteUrl=normalizeExternalUrl(gv(leadN.website,raw.website));
   d.discovery.avgJobValue=disco('average_project_size');
   d.discovery.jobsPerMonth=disco('projects_per_month');
   d.enrichment.extraJobsPerMonth=disco('additional_projects_wanted');
@@ -567,6 +567,7 @@ function adaptCrmPayload(raw){
   ['client','discovery','enrichment','footprint','assets','meta'].forEach(function(k){
     if(raw[k]&&typeof raw[k]==='object'&&!Array.isArray(raw[k])){var o={};o[k]=raw[k];mergeDeep(d,o);}
   });
+  if(d.assets&&hasV(d.assets.websiteUrl))d.assets.websiteUrl=normalizeExternalUrl(d.assets.websiteUrl);
   return d;
 }
 
@@ -670,6 +671,13 @@ function parseParams(){
 
 /* ---------- helpers ---------- */
 function esc(s){if(s==null)return '';var x=document.createElement('div');x.textContent=String(s);return x.innerHTML;}
+function normalizeExternalUrl(u){
+  var s=String(u||'').trim();
+  if(!s)return '';
+  if(/^https?:\/\//i.test(s))return s;
+  if(/^\/\//.test(s))return 'https:'+s;
+  return 'https://'+s.replace(/^\/+/,'');
+}
 function hasV(x){return x!=null&&String(x).trim()!==''&&!(Array.isArray(x)&&!x.length);}
 function money(n){var x=parseFloat(String(n).replace(/[^0-9.]/g,''));if(isNaN(x))return null;return '$'+x.toLocaleString('en-US',{maximumFractionDigits:0});}
 function numOf(n){var x=parseFloat(String(n).replace(/[^0-9.]/g,''));return isNaN(x)?null:x;}
@@ -878,10 +886,9 @@ function r_cost(d){
   var ajShow=aj!=null?money(aj):tokD('average_job');
   var monthly=aj!=null&&leads!=null?Math.round(leads*aj):null;
   var annual=monthly!=null?monthly*12:null;
-  var occ=tradeOccPlural(d);
   var pain=hasV(d.enrichment.painPoint)?callout('ember',esc(d.enrichment.painPoint)):callout('ember',tokG('pain point — tie their challenge to being invisible'));
   var costBig=monthly!=null?'<div class="cost-big" data-countup="'+monthly+'">$0</div>':'<div class="cost-big">'+tokD('monthly_opportunity')+'</div>';
-  var costSub='Industry average for <strong>'+tradeIndustry(d)+'</strong>: about <strong>'+leadsTok+' new '+occ+'</strong> find a business like yours through a well-built, findable website each month. At your <strong>'+ajShow+'</strong> average job, that\'s the opportunity on the table.';
+  var costSub='Industry average for <strong>'+tradeIndustry(d)+'</strong>: about <strong>'+leadsTok+' new customers</strong> find a business like yours through a well-built, findable website each month. At your <strong>'+ajShow+'</strong> average job, that\'s the opportunity on the table.';
   var annualLine=annual!=null?'<div class="cost-annual">≈ '+esc(money(annual))+' a year</div>':'<div class="cost-annual">'+tokD('annual_opportunity')+'</div>';
   return wrap('The real cost','The real cost of being hard to find',
     'This isn\'t about a website. It\'s about the customers who never find you — and the jobs that quietly go to whoever showed up first.',
@@ -986,7 +993,8 @@ function r_plans(d){
   return wrap('Plans','Three sizes — here\'s the one we\'d pick for you',lead,'<div class="plangrid">'+cards+'</div>');
 }
 function r_bridge(d){
-  var link=hasV(d.assets.websiteUrl)?'<a class="bridge-link" href="'+esc(d.assets.websiteUrl)+'" target="_blank" rel="noopener">Open '+bizPlain(d)+'\'s site →</a>':'<p class="cover-meta" style="margin-top:18px;font-family:var(--mono);font-size:11px;letter-spacing:.14em;text-transform:uppercase;color:rgba(255,255,255,.4)">'+tokD('website_url')+'</p>';
+  var wu=normalizeExternalUrl(d.assets.websiteUrl);
+  var link=hasV(wu)?'<a class="bridge-link" href="'+esc(wu)+'" target="_blank" rel="noopener">Open '+bizPlain(d)+'\'s site →</a>':'<p class="cover-meta" style="margin-top:18px;font-family:var(--mono);font-size:11px;letter-spacing:.14em;text-transform:uppercase;color:rgba(255,255,255,.4)">'+tokD('website_url')+'</p>';
   return '<div class="inner"><div class="s-eyebrow" style="justify-content:center">Now for the good part</div>'+
     '<h2 class="s-title">Let me show you what we built for '+Biz(d)+'</h2>'+
     '<p class="s-lead" style="margin:0 auto">We\'ve talked about how customers find you and what it takes to be the one they call. Now let me actually <em>show</em> you — with your name on it.</p>'+
@@ -1247,8 +1255,7 @@ var CLIENT_PREFLIGHT=[
   {f:'client.trade',label:'Industry (slug: plumbing, roofing, hvac…)'},
   {f:'client.city',label:'City'},
   {f:'discovery.avgJobValue',label:'Average job value — ask the client'},
-  {f:'discovery.jobsPerMonth',label:'Jobs per month — ask the client'},
-  {f:'assets.websiteUrl',label:'Website preview URL'}
+  {f:'discovery.jobsPerMonth',label:'Jobs per month — ask the client'}
 ];
 function pathEmpty(path){
   var v=getPath(state.data,path);

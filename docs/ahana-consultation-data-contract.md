@@ -14,6 +14,28 @@ with the data baked into the URL.
    mechanism as `{{BUSINESS_NAME}}` on client sites). Use the HTTP response `result` for the
    GitHub PUT. **A page with injected data opens straight into the deck**; the rep can add
    **`?control`** to that URL to edit it in place, or press **E / Setup** during the deck.
+
+### Presentation URL (what reps open)
+
+The link you store in CRM / email is **only** the Netlify deploy URL — nothing appended:
+
+```
+https://summit-plumbing-co-presentation-1284619008.getahana.com/
+```
+
+**Do not** concatenate the client's website or preview URL onto this path. Wrong:
+
+```
+https://….getahana.com/test.com          ← 404; website is not a path on the deck host
+https://….getahana.com/{{website}}       ← same mistake in Make
+```
+
+The **draft site URL** belongs in deck JSON only: `assets.websiteUrl` (full `https://…` URL).
+It is used on the **bridge slide** link at the end of the deck — not in the presentation URL.
+
+In Make, map `presentation_url` = Netlify site URL from the deploy step (trailing `/` optional).
+Map `assets.websiteUrl` inside `DECK_JSON` from the **website builder** preview URL separately.
+
 2. **URL** — append the JSON as a base64url param:
    ```
    index.html?d=<base64url(JSON)>
