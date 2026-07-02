@@ -296,7 +296,8 @@ em{font-style:italic}
 .lead-head .badge{margin-left:auto;font-family:var(--mono);font-size:9px;text-transform:uppercase;letter-spacing:.08em;background:var(--ember);color:#fff;padding:4px 9px;border-radius:5px}
 .lead-body{padding:16px 18px;flex:1}
 .lead-name{font-family:var(--serif);font-size:18px;font-weight:700;color:#fff;margin-bottom:3px}
-.lead-id{font-family:var(--mono);font-size:9.5px;letter-spacing:.08em;color:rgba(255,255,255,.36);margin-bottom:13px}
+.lead-id{font-family:var(--mono);font-size:9.5px;letter-spacing:.08em;color:rgba(255,255,255,.36);margin-bottom:6px}
+.lead-value{font-family:var(--serif);font-size:20px;font-weight:700;color:var(--ember-soft);margin-bottom:11px;line-height:1.2}
 .lead-details{font-size:13.5px;line-height:1.62;color:rgba(255,255,255,.74)}
 .lead-foot{padding:11px 18px;border-top:1px solid var(--border-light);font-family:var(--mono);font-size:9px;letter-spacing:.1em;text-transform:uppercase;color:rgba(255,255,255,.34);display:flex;align-items:center;gap:7px}
 .lead-foot .dot{width:6px;height:6px;border-radius:50%;background:#3FBF63;box-shadow:0 0 8px rgba(63,191,99,.7)}
@@ -582,9 +583,9 @@ var PLANS={
 };
 
 var SAMPLE_LEADS=[
-  {id:'E515CE11',name:'Kerry R.',type:'Kitchen',details:'We need to renovate our kitchen top to bottom — flooring (possibly subfloor), cabinets and counters, tiling, lighting and electrical. Open to suggestions. It’s about 8×15′. Timeframe: within 6 months.'},
-  {id:'0A1C14CF',name:'William V.',type:'Bathroom',details:'Due to my wife’s mobility issues we need to modernize her shower stall to make it easier and safer for her to get in and out.'},
-  {id:'8C53BCB4',name:'Lucia P.',type:'Bath + Basement',details:'I’m requesting a quote for a bathroom and basement renovation.'}
+  {id:'E515CE11',name:'Kerry R.',type:'Kitchen',value:45000,details:'We need to renovate our kitchen top to bottom — flooring (possibly subfloor), cabinets and counters, tiling, lighting and electrical. Open to suggestions. It’s about 8×15′. Timeframe: within 6 months.'},
+  {id:'0A1C14CF',name:'William V.',type:'Bathroom',value:15000,details:'Due to my wife’s mobility issues we need to modernize her shower stall to make it easier and safer for her to get in and out.'},
+  {id:'8C53BCB4',name:'Lucia P.',type:'Bath + Basement',value:18000,details:'I’m requesting a quote for a bathroom and basement renovation.'}
 ];
 
 /* ---------- industry averages (slug = CRM industry e.g. "plumbing", "roofing") ---------- */
@@ -945,7 +946,9 @@ function r_proof(d){
   /* STATIC — always the 3 sample leads (not modular, not data-driven). */
   var body='<div class="leadgrid">'+SAMPLE_LEADS.map(function(l){
       return '<div class="lead-card"><div class="lead-head"><span class="flame">🔥</span><span class="tt">New Lead</span><span class="badge">'+esc(l.type)+'</span></div>'+
-        '<div class="lead-body"><div class="lead-name">'+esc(l.name)+'</div><div class="lead-id">ID '+esc(l.id)+'</div><div class="lead-details">'+esc(l.details)+'</div></div>'+
+        '<div class="lead-body"><div class="lead-name">'+esc(l.name)+'</div><div class="lead-id">ID '+esc(l.id)+'</div>'+
+        (l.value?'<div class="lead-value">'+esc(money(l.value))+' project</div>':'')+
+        '<div class="lead-details">'+esc(l.details)+'</div></div>'+
         '<div class="lead-foot"><span class="dot"></span>Inbound · via website</div></div>';
     }).join('')+'</div>';
   return wrap('Real results','What it looks like when it\'s working',
