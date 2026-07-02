@@ -737,6 +737,9 @@ function extraJobsDisplay(d){
 }
 function extraJobsToken(d){var v=extraJobsDisplay(d);return v!=null?v:tokD('extra_jobs_per_month');}
 function avgJobCalc(d){return statedAvgJob(d)||industryFor(d.client.trade).avgJob;}
+var ROI_JOB_SLIDER_MAX=20000;
+function roiJobValue(d){var v=statedAvgJob(d);return v!=null?v:avgJobCalc(d);}
+function roiJobSliderPos(v){v=+v||0;return Math.min(Math.max(v,150),ROI_JOB_SLIDER_MAX);}
 function volumeCalc(d){return statedVolume(d)||industryFor(d.client.trade).volume;}
 function webLeadsCalc(d){
   var v=statedWebLeads(d);
@@ -888,7 +891,7 @@ function r_cost(d){
   var annual=monthly!=null?monthly*12:null;
   var pain=hasV(d.enrichment.painPoint)?callout('ember',esc(d.enrichment.painPoint)):callout('ember',tokG('pain point — tie their challenge to being invisible'));
   var costBig=monthly!=null?'<div class="cost-big" data-countup="'+monthly+'">$0</div>':'<div class="cost-big">'+tokD('monthly_opportunity')+'</div>';
-  var costSub='Industry average for <strong>'+tradeIndustry(d)+'</strong>: about <strong>'+leadsTok+' new customers</strong> find a business like yours through a well-built, findable website each month. At your <strong>'+ajShow+'</strong> average job, that\'s the opportunity on the table.';
+  var costSub='Industry average for <strong>'+tradeIndustry(d)+'</strong>: about <strong>'+leadsTok+' new clients</strong> find businesses like yours through a well-built, findable website each month. At your <strong>'+ajShow+'</strong> average job, that\'s the opportunity on the table.';
   var annualLine=annual!=null?'<div class="cost-annual">≈ '+esc(money(annual))+' a year</div>':'<div class="cost-annual">'+tokD('annual_opportunity')+'</div>';
   return wrap('The real cost','The real cost of being hard to find',
     'This isn\'t about a website. It\'s about the customers who never find you — and the jobs that quietly go to whoever showed up first.',
@@ -961,14 +964,14 @@ function r_why(d){
     gcardBody('Nothing technical','We handle the internet stuff so you can keep doing what you\'re good at.')+'</div>');
 }
 function r_plan(d){
-  var pl=plan(d),ajC=avgJobCalc(d),exC=extraJobsCalc(d);
+  var pl=plan(d),roiJv=roiJobValue(d),sliderJv=roiJobSliderPos(roiJv),exC=extraJobsCalc(d);
   var ajShow=avgJobDisplay(d),exShow=extraJobsToken(d);
   var rationale=hasV(d.enrichment.planRationale)?esc(d.enrichment.planRationale):(pl?esc(defRationale(d)):tokG('plan rationale'));
   var price=pl?pl.price:549,pn=pl?pl.name:'Enhanced';
   return wrap('Your plan','Our recommendation: <em>'+planName(d)+'</em>',rationale,
-    '<div class="roi" data-roi data-price="'+price+'" data-planname="'+esc(pn)+'">'+
+    '<div class="roi" data-roi data-price="'+price+'" data-planname="'+esc(pn)+'" data-jobval="'+roiJv+'">'+
     '<div class="roi-grid"><div class="roi-controls">'+
-    '<div class="ctl"><div class="top"><label>Average job value</label><span class="out" data-out="jobval">'+ajShow+'</span></div><input type="range" class="roi-range" data-range="jobval" min="150" max="20000" step="50" value="'+ajC+'"></div>'+
+    '<div class="ctl"><div class="top"><label>Average job value</label><span class="out" data-out="jobval">'+ajShow+'</span></div><input type="range" class="roi-range" data-range="jobval" min="150" max="'+ROI_JOB_SLIDER_MAX+'" step="50" value="'+sliderJv+'"></div>'+
     '<div class="ctl"><div class="top"><label>Extra jobs a month</label><span class="out" data-out="jobs">'+exShow+'</span></div><input type="range" class="roi-range" data-range="jobs" min="1" max="20" step="1" value="'+exC+'"></div>'+
     '<div class="roi-verdict" data-verdict></div></div>'+
     '<div class="roi-out"><div class="big" data-out="net">$0</div><div class="big-l">Extra revenue a month</div>'+
@@ -1058,9 +1061,12 @@ function countUp(el,target){
 }
 function wireROI(root){
   var jvR=root.querySelector('[data-range="jobval"]'),jbR=root.querySelector('[data-range="jobs"]'),price=+root.dataset.price,pn=root.dataset.planname;
+  var sliderMax=+jvR.max||ROI_JOB_SLIDER_MAX,baseJv=+(root.dataset.jobval)||+jvR.value;
+  jvR.value=String(roiJobSliderPos(baseJv));
   function f(n){return '$'+Math.round(n).toLocaleString('en-US');}
+  function currentJv(){return root.dataset.roiDragged?+jvR.value:(baseJv>sliderMax?baseJv:+jvR.value);}
   function upd(){
-    var jv=+jvR.value,jb=+jbR.value,rev=jv*jb,net=rev-price,year=net*12;
+    var jv=currentJv(),jb=+jbR.value,rev=jv*jb,net=rev-price,year=net*12;
     root.querySelector('[data-out="jobval"]').textContent=f(jv);
     root.querySelector('[data-out="jobs"]').textContent=jb;
     root.querySelector('[data-out="rev"]').textContent=f(rev);
@@ -1070,7 +1076,8 @@ function wireROI(root){
     if(rev>=price)v.innerHTML='Just <b style="color:#fff">'+jb+' extra job'+(jb===1?'':'s')+'</b> a month makes '+esc(pn)+' pay for itself'+(rev>=price*2?' several times over':' and then some')+'.';
     else v.innerHTML='About <b style="color:#fff">'+need+' extra job'+(need===1?'':'s')+'</b> a month covers '+esc(pn)+' — well within reach once you\'re findable.';
   }
-  jvR.addEventListener('input',upd);jbR.addEventListener('input',upd);upd();
+  jvR.addEventListener('input',function(){root.dataset.roiDragged='1';upd();});
+  jbR.addEventListener('input',upd);upd();
 }
 
 /* =====================================================================
